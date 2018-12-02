@@ -279,7 +279,6 @@ defmodule Que.Persistence.Mnesia.DB do
         :ok  -> struct
         term -> term
       end
-
     end
 
     defp prepare_record_for_write!(table, record) do
@@ -312,19 +311,16 @@ defmodule Que.Persistence.Mnesia.DB do
     #---------------------
     # @TODO - I have a much more efficient mechanisms for a sequence generator need a way to drop in.
     #---------------------
-    defp autoincrement_key_for(table) do
-      Memento.transaction! fn ->
-        record = @auto_inc
-                 |> Memento.Query.read(__MODULE__)
-        n = case record do
-          nil -> 0
-          r -> r.counter + 1
+    def autoincrement_key_for(table) do
+      {:atomic, n} = :mnesia.transaction(fn ->
+        n = case :mnesia.read(@auto_inc, table, :write) do
+          [{@auto_inc, table, c}| _] -> c + 1
+          o -> 0
         end
-
-        %@auto_inc{id: __MODULE__, counter: n}
-        |> Memento.Query.write()
+        :mnesia.write(@auto_inc, {@auto_inc, table, n}, :write)
         n
-      end
+      end)
+      n
     end
 
     defp read(id),      do: dirty_read(id) #Memento.Query.read(@store, id)

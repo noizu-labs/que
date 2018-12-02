@@ -21,7 +21,7 @@ defmodule Que.Test.Server do
     assert capture =~ ~r/perform: :yo/
   end
 
-
+  @tag :debug2
   test "loads and processes existing jobs when server starts" do
     1..4
     |> Enum.map(&Que.Job.new(TestWorker, :"job_#{&1}"))
@@ -31,7 +31,7 @@ defmodule Que.Test.Server do
       Que.Server.start_link(TestWorker)
       Helpers.wait
     end)
-
+    
     assert capture =~ ~r/perform: :job_1/
     assert capture =~ ~r/perform: :job_2/
     assert capture =~ ~r/perform: :job_3/
