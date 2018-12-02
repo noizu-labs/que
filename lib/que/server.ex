@@ -55,7 +55,7 @@ defmodule Que.Server do
 
   @doc false
   def add(priority, worker, arg) do
-    GenServer.call(via_worker(worker), {:add_job, priority, worker, arg})
+    GenServer.cast(via_worker(worker), {:add_job, priority, worker, arg})
   end
 
   # Initial State with Empty Queue and a list of currently running jobs
@@ -91,7 +91,22 @@ defmodule Que.Server do
     {:reply, :ok, queue}
   end
 
+  @doc false
+  def handle_cast({:add_job, priority, worker, args}, queue) do
+    Que.Helpers.log("Queued new Job for #{ExUtils.Module.name(worker)}")
 
+    job =
+      worker
+      |> Que.Job.new(args, priority)
+      |> Que.Persistence.insert
+
+    queue =
+      queue
+      |> Que.Queue.put(job)
+      |> Que.Queue.process
+
+    {:noreply, queue}
+  end
 
 
   # Job was completed successfully - Does cleanup and executes the Success
