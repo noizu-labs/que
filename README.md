@@ -18,9 +18,10 @@ See the [Documentation][docs].
 
 <br>
 
-This @noizu fork adds some experimental features. 
+# This @noizu fork adds some experimental features. 
 
-- Priority may now be specified when queues jobs. Only the values :pri0, :pri1, :pri2, :pri3 are currently available. 
+## Priority may now be specified when queues jobs. 
+  Only the values :pri0, :pri1, :pri2, :pri3 are currently available. 
   Jobs with :pri0 will execute before jobs with :pri1. 
   Jobs with :pri1 will execute before jobs with :pri2, etc.
 
@@ -38,7 +39,8 @@ This @noizu fork adds some experimental features.
     Que.pri3(App.Workers.ImageConverter, some_image)        
   ```
 
-- ShardWorkers Available for situations where the GenServer call and queue update tasks themselves  become a bottle neck. 
+## ShardWorkers
+  Available for situations where the GenServer call and queue update tasks themselves  become a bottle neck. 
   In shard workers the provided concurrency values controls the number of servers created with server processing one job
   at a time. Jobs are queued in the same was as to regular workers but the actual job is pushed randomly to one
   of the available shards. E.g. `Que.add(ShardWorker, :test)` pushes to `ShardWorker.Shard16`
@@ -57,7 +59,12 @@ This @noizu fork adds some experimental features.
     Que.add(App.Workers.ImageConverter)
     ```    
 
-- Schema and queries have been modified to include the host node 
+## Dirty Operations
+  Bypass Memento (Temporary will make configurable) to allow dirty read/writes due to performance bottlenecks 
+  under high throughput and cyclic errors under load when handling shard workers.  
+
+## Distributed System Tweaks
+  Schema and queries have been modified to include the host node 
   this allows you to host persistent queues on multiple servers with
   out the tasks being duplicated on across nodes after restart. 
   Calls have been added to specify host queue.  
@@ -97,7 +104,7 @@ This @noizu fork adds some experimental features.
     Que.remote_async_add(Enum.at(cluster, index), DistributedWorker, [argument: :list])
   ```
   
-
+- d
 
 ## Installation
 

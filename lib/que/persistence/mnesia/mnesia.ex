@@ -44,9 +44,7 @@ defmodule Que.Persistence.Mnesia do
   @config [db: DB, table: Jobs]
   @db     Module.concat(__MODULE__, @config[:db])
   @store  Module.concat(@db, @config[:table])
-
-
-
+  @auto_inc Module.concat([@db, AUIN])
 
   @doc """
   Creates the Mnesia Database for `Que` on disk
@@ -100,11 +98,14 @@ defmodule Que.Persistence.Mnesia do
     Memento.start
 
     # Create the DB with Disk Copies
+    Memento.Table.create!(@store, disc_copies: nodes)
+    Memento.Table.create!(@auto_inc, disc_copies: nodes)
+
     # TODO:
     # Use Memento.Table.wait when it gets implemented
     # @db.create!(disk: nodes)
     # @db.wait(15000)
-    Memento.Table.create!(@store, disc_copies: nodes)
+    :ok = :mnesia.wait_for_tables([@store, @auto_inc], 5000)
   end
 
 
@@ -133,6 +134,8 @@ defmodule Que.Persistence.Mnesia do
   @doc false
   def initialize do
     Memento.Table.create(@store)
+    Memento.Table.create(@auto_inc)
+    :ok = :mnesia.wait_for_tables([@store, @auto_inc], 5000)
   end
 
 

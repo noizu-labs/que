@@ -128,6 +128,9 @@ defmodule Que.Test.Meta do
     def reset do
       Memento.Table.delete(Que.Persistence.Mnesia.DB.Jobs)
       Memento.Table.create(Que.Persistence.Mnesia.DB.Jobs)
+
+      Memento.Table.delete(Que.Persistence.Mnesia.DB.AUIN)
+      Memento.Table.create(Que.Persistence.Mnesia.DB.AUIN)
       :ok
     end
 
