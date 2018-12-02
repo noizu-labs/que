@@ -59,9 +59,17 @@ See the [Documentation][docs].
     Que.add(App.Workers.ImageConverter)
 ```    
 
-## Dirty Operations
+## Dirty Operations & Throughput Optimization
   Bypass Memento (Temporary will make configurable) to allow dirty read/writes due to performance bottlenecks 
   under high throughput and cyclic errors under load when handling shard workers.  
+ 
+  Replaced GenServer.Call for add worker with GenServer.cast to allow workers to pool up with out waiting on 
+  confirmation.
+  
+  Modified Process Monitor handler to treat :noproc responses (usually due to process completing 
+  before the Monitor has been bound) as success. 
+  
+  These changes all favor throughput over data correctness and, in the case of the ShardWorker change, order of execution.
 
 ## Distributed System Tweaks
   Schema and queries have been modified to include the host node 
