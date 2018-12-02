@@ -163,6 +163,7 @@ defmodule Que.Worker do
       def __que_worker__, do: true
 
 
+      def _is_shard?, do: false
 
       ## Default implementations of on_success and on_failure callbacks
 

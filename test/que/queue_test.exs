@@ -6,8 +6,26 @@ defmodule Que.Test.Queue do
 
   alias Que.Test.Meta.Helpers
   alias Que.Test.Meta.TestWorker
+  alias Que.Test.Meta.TestShardWorker
   alias Que.Test.Meta.ConcurrentWorker
 
+
+  test "#shard worker for cases where throughput more critical than sequence" do
+    q = Queue.new(TestShardWorker.Shard1)
+    assert q.__struct__     == Queue
+    assert q.worker         == TestShardWorker.Shard1
+    assert Queue.queued(q)  == []
+    assert Queue.running(q) == []
+  end
+
+
+  test "#shard worker for cases where throughput more critical than sequence - invoke" do
+    capture = Helpers.capture_log(fn ->
+      Que.add(TestShardWorker, :test)
+      Helpers.wait
+    end)
+    assert capture =~ ~r/Starting Job.*TestShardWorker.Shard/
+  end
 
   test "#new builds a new job queue with defaults" do
     q = Queue.new(TestWorker)

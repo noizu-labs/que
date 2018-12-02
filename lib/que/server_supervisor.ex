@@ -49,10 +49,29 @@ defmodule Que.ServerSupervisor do
 
   @doc false
   def add(priority, worker, args) do
-    unless Que.Server.exists?(worker) do
-      start_server(worker)
+
+    is_shard = try do
+      worker._is_shard?
+      rescue _ -> false
+      catch _ -> false
     end
-    Que.Server.add(priority, worker, args)
+
+    if is_shard do
+      shards = worker._shards()
+      pick = :"Shard#{:rand.uniform(shards)}"
+      shard = Module.concat([worker, pick])
+      unless Que.Server.exists?(shard) do
+        start_server(shard)
+      end
+      Que.Server.add(priority, shard, args)
+    else
+      unless Que.Server.exists?(worker) do
+        start_server(worker)
+      end
+      Que.Server.add(priority, worker, args)
+    end
+
+
   end
 
   @doc false

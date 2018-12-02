@@ -37,7 +37,26 @@ This @noizu fork adds some experimental features.
     Que.pri2(App.Workers.ImageConverter, some_image)
     Que.pri3(App.Workers.ImageConverter, some_image)        
   ```
-   
+
+- ShardWorkers Available for situations where the GenServer call and queue update tasks themselves  become a bottle neck. 
+  In shard workers the provided concurrency values controls the number of servers created with server processing one job
+  at a time. Jobs are queued in the same was as to regular workers but the actual job is pushed randomly to one
+  of the available shards. E.g. `Que.add(ShardWorker, :test)` pushes to `ShardWorker.Shard16`
+      
+  ShardWorkers are configured like standard workers.     
+    ```elixir
+    defmodule App.Workers.ImageConverter do
+      use Que.ShardWorker
+    
+      def perform(image) do
+        ImageTool.save_resized_copy!(image, :thumbnail)
+        ImageTool.save_resized_copy!(image, :medium)
+      end
+    end
+    
+    Que.add(App.Workers.ImageConverter)
+    ```    
+
 - Schema and queries have been modified to include the host node 
   this allows you to host persistent queues on multiple servers with
   out the tasks being duplicated on across nodes after restart. 
