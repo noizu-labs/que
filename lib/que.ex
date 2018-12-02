@@ -113,5 +113,32 @@ defmodule Que do
   @spec add(worker :: module, arguments :: term) :: :ok
   defdelegate add(worker, arguments), to: Que.ServerSupervisor
 
+  @spec add(priority :: atom, worker :: module, arguments :: term) :: :ok
+  defdelegate add(priority, worker, arguments), to: Que.ServerSupervisor
+
+  @spec remote_add(node :: any, worker :: module, arguments :: term) :: :ok
+  defdelegate remote_add(node, worker, arguments), to: Que.ServerSupervisor
+
+  @spec remote_add(node :: any, priority :: atom, worker :: module, arguments :: term) :: :ok
+  defdelegate remote_add(node, priority, worker, arguments), to: Que.ServerSupervisor
+
+  @spec remote_async_add(node :: any, worker :: module, arguments :: term) :: :ok
+  defdelegate remote_async_add(node, worker, arguments), to: Que.ServerSupervisor
+
+  @spec remote_async_add(node :: any, priority :: atom, worker :: module, arguments :: term) :: :ok
+  defdelegate remote_async_add(node, priority,  worker, arguments), to: Que.ServerSupervisor
+
+
+  @spec pri0(worker :: module, arguments :: term) :: :ok
+  defdelegate pri0(worker, arguments), to: Que.ServerSupervisor
+
+  @spec pri1(worker :: module, arguments :: term) :: :ok
+  defdelegate pri1(worker, arguments), to: Que.ServerSupervisor
+
+  @spec pri2(worker :: module, arguments :: term) :: :ok
+  defdelegate pri2(worker, arguments), to: Que.ServerSupervisor
+
+  @spec pri3(worker :: module, arguments :: term) :: :ok
+  defdelegate pri3(worker, arguments), to: Que.ServerSupervisor
 end
 

@@ -20,3 +20,5 @@ erl_crash.dump
 /Mnesia.nonode@nohost
 /.mnesia
 
+/.idea
+que.iml

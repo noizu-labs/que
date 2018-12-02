@@ -50,14 +50,15 @@ defmodule Que.Server do
 
   @doc false
   def add(worker, arg) do
-    GenServer.call(via_worker(worker), {:add_job, worker, arg})
+    add(:pri1, worker, arg)
   end
 
-
-
+  @doc false
+  def add(priority, worker, arg) do
+    GenServer.call(via_worker(worker), {:add_job, priority, worker, arg})
+  end
 
   # Initial State with Empty Queue and a list of currently running jobs
-
   @doc false
   def init({:ok, worker}) do
     existing_jobs =
@@ -71,18 +72,15 @@ defmodule Que.Server do
     {:ok, queue}
   end
 
-
-
-
   # Pushes a new Job to the queue and processes it
 
   @doc false
-  def handle_call({:add_job, worker, args}, _from, queue) do
+  def handle_call({:add_job, priority, worker, args}, _from, queue) do
     Que.Helpers.log("Queued new Job for #{ExUtils.Module.name(worker)}")
 
     job =
       worker
-      |> Que.Job.new(args)
+      |> Que.Job.new(args, priority)
       |> Que.Persistence.insert
 
     queue =

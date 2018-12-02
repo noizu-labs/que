@@ -141,12 +141,12 @@ defmodule Que.Test.Meta do
     # Creates sample Mnesia jobs
     def create_sample_jobs do
       [
-        %Que.Job{id: 1, status: :completed, worker: TestWorker    },
-        %Que.Job{id: 2, status: :completed, worker: SuccessWorker },
-        %Que.Job{id: 3, status: :failed,    worker: FailureWorker },
-        %Que.Job{id: 4, status: :started,   worker: TestWorker    },
-        %Que.Job{id: 5, status: :queued,    worker: SuccessWorker },
-        %Que.Job{id: 6, status: :queued,    worker: FailureWorker }
+        %Que.Job{id: 1, node: node(), priority: :pri0, status: :completed, worker: TestWorker    },
+        %Que.Job{id: 2, node: node(), priority: :pri0, status: :completed, worker: SuccessWorker },
+        %Que.Job{id: 3, node: node(), priority: :pri0, status: :failed,    worker: FailureWorker },
+        %Que.Job{id: 4, node: node(), priority: :pri0, status: :started,   worker: TestWorker    },
+        %Que.Job{id: 5, node: node(), priority: :pri0, status: :queued,    worker: SuccessWorker },
+        %Que.Job{id: 6, node: node(), priority: :pri0, status: :queued,    worker: FailureWorker }
       ] |> Enum.map(&Que.Persistence.Mnesia.insert/1)
     end
   end

@@ -1,7 +1,6 @@
 defmodule Que.Job do
-  defstruct  [:id, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at]
+  defstruct  [:id, :node, :priority, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at]
   ## Note: Update Que.Persistence.Mnesia after changing these values
-
 
   @moduledoc """
   Module to manage a Job's state and execute the worker's callbacks.
@@ -11,7 +10,6 @@ defmodule Que.Job do
   unless you absolutely know what you're doing.
   """
 
-
   @statuses [:queued, :started, :failed, :completed]
   @typedoc  "One of the atoms in `#{inspect(@statuses)}`"
   @type     status :: atom
@@ -19,15 +17,14 @@ defmodule Que.Job do
   @typedoc  "A `Que.Job` struct"
   @type     t :: %Que.Job{}
 
-
-
-
   @doc """
   Returns a new Job struct with defaults
   """
-  @spec new(worker :: Que.Worker.t, args :: list) :: Que.Job.t
-  def new(worker, args \\ nil) do
+  @spec new(worker :: Que.Worker.t, args :: list, pri :: atom) :: Que.Job.t
+  def new(worker, args \\ nil, pri \\ :pri1) do
     %Que.Job{
+      node: node(),
+      priority: pri,
       status:    :queued,
       worker:    worker,
       arguments: args
@@ -35,7 +32,30 @@ defmodule Que.Job do
   end
 
 
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri0(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri0(worker, args \\ nil), do: new(worker, args, :pri0)
 
+
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri1(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri1(worker, args \\ nil), do: new(worker, args, :pri1)
+
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri2(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri2(worker, args \\ nil), do: new(worker, args, :pri2)
+
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri3(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri3(worker, args \\ nil), do: new(worker, args, :pri3)
 
   @doc """
   Update the Job status to one of the predefined values in `@statuses`

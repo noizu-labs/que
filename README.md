@@ -18,7 +18,66 @@ See the [Documentation][docs].
 
 <br>
 
+This @noizu fork adds some experimental features. 
 
+- Priority may now be specified when queues jobs. Only the values :pri0, :pri1, :pri2, :pri3 are currently available. 
+  Jobs with :pri0 will execute before jobs with :pri1. 
+  Jobs with :pri1 will execute before jobs with :pri2, etc.
+
+  ```
+    # Create with default priority :pri1
+    Que.add(App.Workers.ImageConverter, some_image)
+     
+    # Specify Priority 
+    Que.add(:pri0, App.Workers.ImageConverter, some_image)
+    
+    # Convienence methods. 
+    Que.pri0(App.Workers.ImageConverter, some_image)
+    Que.pri1(App.Workers.ImageConverter, some_image)
+    Que.pri2(App.Workers.ImageConverter, some_image)
+    Que.pri3(App.Workers.ImageConverter, some_image)        
+  ```
+   
+- Schema and queries have been modified to include the host node 
+  this allows you to host persistent queues on multiple servers with
+  out the tasks being duplicated on across nodes after restart. 
+  Calls have been added to specify host queue.  
+  
+  In the future this may additionally be used in conjuction with a coordinater mechanism to  
+  load balance tasks across servers.
+  
+  ```
+    # remote_add uses :rpc.call
+    Que.remote_add(:"node_in_cluster@domain.com", DistributedWorker, arguments) 
+    Que.remote_add(:"node_in_cluster@domain.com", :pri3, DistributedWorker, arguments)
+    
+    # remote_async_add uses :rpc.cast
+    Que.remote_async_add(:"node_in_cluster@domain.com", DistributedWorker, arguments) 
+    Que.remote_async_add(:"node_in_cluster@domain.com", :pri3, DistributedWorker, arguments)
+  ```
+  
+  Although in the future I may will add load balancing support and availabilty checks you may implement crude balancing
+  on your own using a randomized or round robing approach. 
+  
+  ### Example Randomized Load Balancer
+  ```  
+    # You may implement a very simple randomized load balancer such as
+    cluser = [:"node1@domain.com", :"node2@domaint.com"] 
+    Que.remote_async_add(Enum.random(cluster), DistributedWorker, arguments) 
+  ```
+    
+  ### Example Round Robin Load Balancer 
+  ```      
+    @table :round_robin_cluster
+    :ets.new(@table, [:set, :public, :named_table, {:write_concurrency, true}])
+    
+    cluster = [:"node1@domain.com", :"node2@domaint.com"]
+    cluster_size = length(cluster)         
+
+    index = :ets.update_counter(@table, DistributedWorker, {2, 1, cluster_size - 1, 0}, {DistributedWorker, 0})     
+    Que.remote_async_add(Enum.at(cluster, index), DistributedWorker, [argument: :list])
+  ```
+  
 
 
 ## Installation
@@ -27,18 +86,18 @@ Add `que` to your project dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:que, "~> 0.7.0"}]
+  [
+    {:que, github: "noizu/que", tag: "0.7.1"},
+  ]
 end
 ```
 
-and then add it to your list of `applications`:
-
+and then add it to your list of `applications`: (not required on newer version of elixir)
 ```elixir
 def application do
   [applications: [:que]]
 end
 ```
-
 
 ### Mnesia Setup
 
@@ -113,6 +172,12 @@ defmodule App.Workers.NotificationSender do
     User.notify(user, "New activity on your profile")
   end
 end
+
+# Allowing for syntaxically pretty api calls such as 
+Que.add(App.Workers.NotificationSender, type: :message, to: "keith", from: "admin")
+# Or less ambigiously
+Que.add(App.Workers.NotificationSender, [type: :message, to: "keith", from: "admin"])
+
 ```
 
 
@@ -162,9 +227,6 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 <br>
 
-
-
-
 ## Roadmap
 
  - [x] Write Documentation
@@ -186,9 +248,6 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 <br>
 
-
-
-
 ## Contributing
 
  - [Fork][github-fork], Enhance, Send PR
@@ -198,17 +257,11 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 <br>
 
-
-
-
 ## License
 
 This package is available as open source under the terms of the [MIT License][license].
 
 <br>
-
-
-
 
   [logo]:             https://i.imgur.com/Eec71eh.png
   [shield-version]:   https://img.shields.io/hexpm/v/que.svg

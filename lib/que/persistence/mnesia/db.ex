@@ -14,32 +14,28 @@ defmodule Que.Persistence.Mnesia.DB do
 
   defmodule Jobs do
     use Memento.Table,
-      attributes: [:id, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at],
-      index: [:worker, :status],
-      type: :ordered_set,
-      autoincrement: true
-
+        attributes: [:id, :node, :priority, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at],
+        index: [:node, :priority, :worker, :status],
+        type: :ordered_set,
+        autoincrement: true
 
     @moduledoc false
     @store     __MODULE__
 
-
-
     # Persistence Implementation
     # --------------------------
-
-
     @doc "Finds all Jobs"
     def all_jobs do
       run_query([])
     end
 
-
-
     @doc "Find all Jobs for a worker"
     def all_jobs(name) do
       run_query(
-        {:==, :worker, name}
+        {:and,
+          {:==, :node, node()},
+          {:==, :worker, name}
+        }
       )
     end
 
@@ -48,7 +44,10 @@ defmodule Que.Persistence.Mnesia.DB do
     @doc "Find Completed Jobs"
     def completed_jobs do
       run_query(
-        {:==, :status, :completed}
+        {:and,
+          {:==, :node, node()},
+          {:==, :status, :completed}
+        }
       )
     end
 
@@ -58,8 +57,12 @@ defmodule Que.Persistence.Mnesia.DB do
     def completed_jobs(name) do
       run_query(
         {:and,
-          {:==, :worker, name},
-          {:==, :status, :completed}
+          {:==, :node, node()},
+          {:and,
+            {:==, :worker, name},
+            {:==, :status, :completed}
+          }
+
         }
       )
     end
@@ -69,20 +72,8 @@ defmodule Que.Persistence.Mnesia.DB do
     @doc "Find Incomplete Jobs"
     def incomplete_jobs do
       run_query(
-        {:or,
-          {:==, :status, :queued},
-          {:==, :status, :started}
-        }
-      )
-    end
-
-
-
-    @doc "Find Incomplete Jobs for worker"
-    def incomplete_jobs(name) do
-      run_query(
         {:and,
-          {:==, :worker, name},
+          {:==, :node, node()},
           {:or,
             {:==, :status, :queued},
             {:==, :status, :started}
@@ -93,10 +84,31 @@ defmodule Que.Persistence.Mnesia.DB do
 
 
 
+    @doc "Find Incomplete Jobs for worker"
+    def incomplete_jobs(name) do
+      run_query(
+        {:and,
+          {:==, :node, node()},
+          {:and,
+            {:==, :worker, name},
+            {:or,
+              {:==, :status, :queued},
+              {:==, :status, :started}
+            }
+          }
+        }
+      )
+    end
+
+
+
     @doc "Find Failed Jobs"
     def failed_jobs do
       run_query(
-        {:==, :status, :failed}
+        {:and,
+          {:==, :node, node()},
+          {:==, :status, :failed}
+        }
       )
     end
 
@@ -106,8 +118,11 @@ defmodule Que.Persistence.Mnesia.DB do
     def failed_jobs(name) do
       run_query(
         {:and,
-          {:==, :worker, name},
-          {:==, :status, :failed}
+          {:==, :node, node()},
+          {:and,
+            {:==, :worker, name},
+            {:==, :status, :failed}
+          }
         }
       )
     end

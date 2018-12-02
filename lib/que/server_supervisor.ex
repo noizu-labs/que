@@ -44,14 +44,54 @@ defmodule Que.ServerSupervisor do
   # If not, spawn a new server first and then add it.
   @doc false
   def add(worker, args) do
+    add(:pri1, worker, args)
+  end
+
+  @doc false
+  def add(priority, worker, args) do
     unless Que.Server.exists?(worker) do
       start_server(worker)
     end
-
-    Que.Server.add(worker, args)
+    Que.Server.add(priority, worker, args)
   end
 
+  @doc false
+  def pri0(worker, args) do
+    add(:pri0, worker, args)
+  end
 
+  @doc false
+  def pri1(worker, args) do
+    add(:pri1, worker, args)
+  end
+
+  @doc false
+  def pri2(worker, args) do
+    add(:pri2, worker, args)
+  end
+
+  @doc false
+  def pri3(worker, args) do
+    add(:pri3, worker, args)
+  end
+
+  def remote_add(remote, worker, args) do
+    :rpc.call(remote, __MODULE__, :add, [worker, args])
+  end
+
+  def remote_add(remote, priority, worker, args) do
+    :rpc.call(remote, __MODULE__, :add, [priority, worker, args])
+  end
+
+  def remote_async_add(remote, worker, args) do
+    :rpc.cast(remote, __MODULE__, :add, [worker, args])
+    :ok
+  end
+
+  def remote_async_add(remote, priority, worker, args) do
+    :rpc.cast(remote, __MODULE__, :add, [priority, worker, args])
+    :ok
+  end
 
 
   @doc false

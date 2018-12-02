@@ -19,22 +19,27 @@ defmodule Que.Queue do
   @type     t :: %Que.Queue{}
 
 
+  @typedoc "Acceptable Priority Levels"
+  @type pri :: :pri0 | :pri1 | :pri2 | :pri3
 
+  @priority_levels [:pri0, :pri1, :pri2, :pri3]
 
   @doc """
   Returns a new processable Queue with defaults
   """
   @spec new(worker :: Que.Worker.t, jobs :: list(Que.Job.t)) :: Que.Queue.t
   def new(worker, jobs \\ []) do
+    queued = Enum.map(@priority_levels, fn(pri) ->
+      jobs = Enum.filter(jobs, &(&1.priority == pri))
+      {pri, :queue.from_list(jobs)}
+    end) |> Map.new()
+
     %Que.Queue{
       worker:  worker,
-      queued:  :queue.from_list(jobs),
+      queued: queued,
       running: []
     }
   end
-
-
-
 
   @doc """
   Processes the Queue and runs pending jobs
@@ -70,26 +75,34 @@ defmodule Que.Queue do
   """
   @spec put(queue :: Que.Queue.t, jobs :: Que.Job.t | list(Que.Job.t)) :: Que.Queue.t
   def put(%Que.Queue{queued: queued} = q, jobs) when is_list(jobs) do
-    jobs = :queue.from_list(jobs)
-    %{ q | queued: :queue.join(queued, jobs) }
+    queued = Enum.map(@priority_levels, fn(pri) ->
+      jq = jobs
+           |> Enum.filter(&(&1.priority == pri))
+           |> :queue.from_list()
+      {pri, :queue.join(queued[pri], jq)}
+    end)
+    %{q | queued: queued}
   end
 
   def put(%Que.Queue{queued: queued} = q, job) do
-    %{ q | queued: :queue.in(job, queued) }
+    queued = update_in(queued, [job.priority], fn(q) -> :queue.in(job, q) end)
+    %{ q | queued: queued }
   end
-
-
-
 
   @doc """
   Fetches the next Job in queue and returns a queue and Job tuple
   """
   @spec fetch(queue :: Que.Queue.t) :: { Que.Queue.t, Que.Job.t | nil }
-  def fetch(%Que.Queue{queued: queue} = q) do
-    case :queue.out(queue) do
-      {{:value, job}, rest} -> { %{ q | queued: rest }, job }
-      {:empty, _} -> { q, nil }
-    end
+  def fetch(%Que.Queue{queued: queued} = q) do
+    Enum.reduce_while(@priority_levels, nil,
+      fn(pri, _acc) ->
+        case :queue.out(queued[pri]) do
+          {{:value, job}, rest} ->
+            {:halt, { %{q | queued: put_in(queued, [pri], rest) }, job }}
+          {:empty, _} -> {:cont, nil}
+        end
+      end
+    ) || {q, nil}
   end
 
 
@@ -123,20 +136,16 @@ defmodule Que.Queue do
   """
   @spec update(queue :: Que.Queue.t, job :: Que.Job.t) :: Que.Queue.t
   def update(%Que.Queue{} = q, %Que.Job{} = job) do
-    queued = queued(q)
+    queued = queued(q, job.priority)
     queued_index = Enum.find_index(queued, &(&1.id == job.id))
-
     if queued_index do
       queued = List.replace_at(queued, queued_index, job)
-      %{ q | queued: :queue.from_list(queued) }
-
+      %{ q | queued: put_in(q.queued, [job.priority], :queue.from_list(queued))}
     else
       running_index = Enum.find_index(q.running, &(&1.id == job.id))
-
       if running_index do
         running = List.replace_at(q.running, running_index, job)
         %{ q | running: running }
-
       else
         raise Que.Error.JobNotFound, "Job not found in Queue"
       end
@@ -160,19 +169,18 @@ defmodule Que.Queue do
     end
   end
 
-
-
-
   @doc """
   Returns queued jobs in the Queue
   """
   @spec queued(queue :: Que.Queue.t) :: list(Que.Job.t)
   def queued(%Que.Queue{queued: queued}) do
-    :queue.to_list(queued)
+    Enum.map(@priority_levels, &(:queue.to_list(queued[&1]))) |> List.flatten()
   end
 
-
-
+  @spec queued(queue :: Que.Queue.t, pri) :: list(Que.Job.t)
+  def queued(%Que.Queue{queued: queued}, pri) do
+    :queue.to_list(queued[pri])
+  end
 
   @doc """
   Returns running jobs in the Queue

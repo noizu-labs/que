@@ -9,6 +9,7 @@ defmodule Que.Test.Server do
   end
 
 
+  @tag :debug
   test "#add queues a job for (previously started) worker server" do
     capture = Helpers.capture_log(fn ->
       Que.Server.start_link(TestWorker)
