@@ -17,7 +17,10 @@ defmodule Que.Test.Meta do
 
   defmodule TestShardWorker do
     use Que.ShardWorker, shards: 10
-    def perform(args), do: Logger.debug("#{__MODULE__} - perform: #{inspect(args)}")
+    def perform(args) do
+      Process.sleep(20)
+      Logger.debug("#{__MODULE__} - perform: #{inspect(args)}")
+    end
   end
 
   defmodule ConcurrentWorker do

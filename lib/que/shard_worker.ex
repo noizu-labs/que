@@ -10,10 +10,11 @@ defmodule Que.ShardWorker do
       module = __MODULE__
       for i <- 0 .. @shards do # @note OB1
         defmodule :"#{module}.Shard#{i}" do
+          @module module
           use Que.Worker, concurrency: 1
-          defdelegate perform(t), to: __MODULE__
-          defdelegate on_success(t), to: __MODULE__
-          defdelegate on_failure(t, e), to: __MODULE__
+          defdelegate perform(t), to: @module
+          defdelegate on_success(t), to: @module
+          defdelegate on_failure(t, e), to: @module
         end
       end
 
@@ -27,7 +28,8 @@ defmodule Que.ShardWorker do
       end
 
 
-      def on_failure(_arg, _err) do
+      def on_failure(arg, err) do
+        IO.puts "FAILRE: #{inspect arg}, #{inspect err}"
       end
 
 

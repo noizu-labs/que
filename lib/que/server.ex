@@ -129,10 +129,24 @@ defmodule Que.Server do
   end
 
 
+  @doc false
+  def handle_info({:DOWN, ref, :process, pid, :noproc}, queue) do
+    # Process exited before Monitor.process registration could occur. It most likely succeeded.
+    job =
+      queue
+      |> Que.Queue.find(:ref, ref)
+      |> Que.Job.handle_success
+      |> Que.Persistence.update
 
+    queue =
+      queue
+      |> Que.Queue.remove(job)
+      |> Que.Queue.process
+
+    {:noreply, queue}
+  end
 
   # Job failed / crashed - Does cleanup and executes the Error callback
-
   @doc false
   def handle_info({:DOWN, ref, :process, _pid, err}, queue) do
     job =
