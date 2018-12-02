@@ -25,7 +25,7 @@ See the [Documentation][docs].
   Jobs with :pri0 will execute before jobs with :pri1. 
   Jobs with :pri1 will execute before jobs with :pri2, etc.
 
-  ```
+  ```elixir
     # Create with default priority :pri1
     Que.add(App.Workers.ImageConverter, some_image)
      
@@ -46,7 +46,7 @@ See the [Documentation][docs].
   of the available shards. E.g. `Que.add(ShardWorker, :test)` pushes to `ShardWorker.Shard16`
       
   ShardWorkers are configured like standard workers.     
-    ```elixir
+```elixir
     defmodule App.Workers.ImageConverter do
       use Que.ShardWorker
     
@@ -57,7 +57,7 @@ See the [Documentation][docs].
     end
     
     Que.add(App.Workers.ImageConverter)
-    ```    
+```    
 
 ## Dirty Operations
   Bypass Memento (Temporary will make configurable) to allow dirty read/writes due to performance bottlenecks 
@@ -72,7 +72,7 @@ See the [Documentation][docs].
   In the future this may additionally be used in conjuction with a coordinater mechanism to  
   load balance tasks across servers.
   
-  ```
+  ```elixir
     # remote_add uses :rpc.call
     Que.remote_add(:"node_in_cluster@domain.com", DistributedWorker, arguments) 
     Que.remote_add(:"node_in_cluster@domain.com", :pri3, DistributedWorker, arguments)
@@ -86,14 +86,14 @@ See the [Documentation][docs].
   on your own using a randomized or round robing approach. 
   
   ### Example Randomized Load Balancer
-  ```  
+  ```elixir
     # You may implement a very simple randomized load balancer such as
     cluser = [:"node1@domain.com", :"node2@domaint.com"] 
     Que.remote_async_add(Enum.random(cluster), DistributedWorker, arguments) 
   ```
     
   ### Example Round Robin Load Balancer 
-  ```      
+  ```elixir
     @table :round_robin_cluster
     :ets.new(@table, [:set, :public, :named_table, {:write_concurrency, true}])
     
