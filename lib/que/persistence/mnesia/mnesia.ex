@@ -135,9 +135,11 @@ defmodule Que.Persistence.Mnesia do
   def initialize do
     Memento.Table.create(@store)
     Memento.Table.create(@auto_inc)
-    Enum.reduce_while(1..100, 0, fn(i, acc) ->
-      w = (i + 10) * 10
+    Enum.reduce_while(1..1_000, 0, fn(i, acc) ->
+      w = (i + 10) * 1_000
       case :mnesia.wait_for_tables([@store, @auto_inc], w)  do
+        Logger.warn "QUE: Waiting on Tables - hard wait"
+        :mnesia.wait_for_tables([@store, @auto_inc])
         :ok -> {:halt, acc}
         _ ->
           Logger.warn "QUE: Waiting on Tables - #{i}}"
