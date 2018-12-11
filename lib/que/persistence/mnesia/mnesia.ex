@@ -138,14 +138,21 @@ defmodule Que.Persistence.Mnesia do
     Enum.reduce_while(1..1_000, 0, fn(i, acc) ->
       w = (i + 10) * 1_000
       case :mnesia.wait_for_tables([@store, @auto_inc], w)  do
-        Logger.warn "QUE: Waiting on Tables - hard wait"
-        :mnesia.wait_for_tables([@store, @auto_inc], :infinity)
         :ok -> {:halt, acc}
         _ ->
           Logger.warn "QUE: Waiting on Tables - #{i}}"
           {:cont, acc + w}
       end
     end)
+
+    case :mnesia.wait_for_tables([@store, @auto_inc], 5_000)  do
+      :ok -> :ok
+      _ ->
+        Logger.warn "QUE: Waiting on Tables - hard wait"
+        :mnesia.wait_for_tables([@store, @auto_inc], :infinity)
+        :ok
+    end
+
   end
 
 
