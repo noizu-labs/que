@@ -1,6 +1,6 @@
 defmodule Que.Persistence.Mnesia do
   use Que.Persistence
-
+  require Logger
 
   @moduledoc """
   Mnesia adapter to persist `Que.Job`s
@@ -135,7 +135,15 @@ defmodule Que.Persistence.Mnesia do
   def initialize do
     Memento.Table.create(@store)
     Memento.Table.create(@auto_inc)
-    :ok = :mnesia.wait_for_tables([@store, @auto_inc], 5000)
+    Enum.reduce_while(1..100, 0, fn(i, acc) ->
+      w = (i + 10) * 10
+      case :mnesia.wait_for_tables([@store, @auto_inc], w)  do
+        :ok -> {:halt, acc}
+        _ ->
+          Logger.warn "QUE: Waiting on Tables - #{i}}"
+          {:cont, acc + w}
+      end
+    end)
   end
 
 

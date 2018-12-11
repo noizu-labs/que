@@ -1,6 +1,5 @@
 defmodule Que.Server do
   use GenServer
-
   @module __MODULE__
 
 
