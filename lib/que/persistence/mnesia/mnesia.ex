@@ -139,7 +139,7 @@ defmodule Que.Persistence.Mnesia do
       w = (i + 10) * 1_000
       case :mnesia.wait_for_tables([@store, @auto_inc], w)  do
         Logger.warn "QUE: Waiting on Tables - hard wait"
-        :mnesia.wait_for_tables([@store, @auto_inc])
+        :mnesia.wait_for_tables([@store, @auto_inc], :infinity)
         :ok -> {:halt, acc}
         _ ->
           Logger.warn "QUE: Waiting on Tables - #{i}}"
