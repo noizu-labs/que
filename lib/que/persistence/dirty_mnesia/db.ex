@@ -25,6 +25,7 @@ defmodule Que.Persistence.DirtyMnesia.DB do
 
 
   defmodule Jobs do
+    require Memento.Error
     use Memento.Table,
         attributes: [:id, :node, :priority, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at],
         index: [:node, :priority, :worker, :status],
