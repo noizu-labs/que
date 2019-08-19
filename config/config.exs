@@ -25,12 +25,16 @@ use Mix.Config
 config :mnesia,
   dir: '.mnesia/#{Mix.env}/#{node()}'
 
-
-
 if Mix.env == :test do
   config :que, log_level: :medium
 end
 
+if Mix.env == :noizu_test do
+  config :que, log_level: :medium
+  config :que, persistence_strategy: Que.Persistence.DirtyMnesia
+  config :que, multi_tenant: true
+  config :que, async_add: true
+end
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment

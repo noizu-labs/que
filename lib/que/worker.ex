@@ -194,7 +194,7 @@ defmodule Que.Worker do
       def concurrency,    do: @concurrency
       def __que_worker__, do: true
 
-
+      def _is_shard?, do: false
 
       ## Default implementations of on_success and on_failure callbacks
 
@@ -214,7 +214,7 @@ defmodule Que.Worker do
       end
 
 
-      defoverridable [on_success: 1, on_failure: 2, on_setup: 1, on_teardown: 1]
+      defoverridable [on_success: 1, on_failure: 2, on_setup: 1, on_teardown: 1, _is_shard?: 0]
 
 
 

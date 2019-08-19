@@ -4,6 +4,8 @@ defmodule Que.Test.Server do
   alias Que.Test.Meta.Helpers
   alias Que.Test.Meta.TestWorker
 
+  @async_add (Application.get_env(:que, :async_add) || false)
+
   setup do
     Helpers.App.reset
   end
@@ -69,12 +71,16 @@ defmodule Que.Test.Server do
 
     {:ok, job} = Que.Server.add(TestWorker, "my_arg")
 
-    assert match?(%Que.Job{
-      arguments: "my_arg",
-      id: 1,
-      status: :queued,
-      worker: TestWorker,
-    }, job)
+    if @async_add do
+      assert job == nil
+    else
+      assert match?(%Que.Job{
+        arguments: "my_arg",
+        id: 1,
+        status: :queued,
+        worker: TestWorker,
+      }, job)
+    end
 
     Que.Server.stop(TestWorker)
   end

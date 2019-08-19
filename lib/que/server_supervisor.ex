@@ -48,10 +48,73 @@ defmodule Que.ServerSupervisor do
       start_server(worker)
     end
 
-    Que.Server.add(worker, args)
+    add(:pri1, worker, args)
   end
 
+  @doc false
+  def add(priority, worker, args) do
 
+    is_shard = try do
+      worker._is_shard?
+    rescue _ -> false
+    catch _ -> false
+    end
+
+    if is_shard do
+      shards = worker._shards()
+      pick = :"Shard#{:rand.uniform(shards)}"
+      shard = Module.concat([worker, pick])
+      unless Que.Server.exists?(shard) do
+        start_server(shard)
+      end
+      Que.Server.add(priority, shard, args)
+    else
+      unless Que.Server.exists?(worker) do
+        start_server(worker)
+      end
+      Que.Server.add(priority, worker, args)
+    end
+
+
+  end
+
+  @doc false
+  def pri0(worker, args) do
+    add(:pri0, worker, args)
+  end
+
+  @doc false
+  def pri1(worker, args) do
+    add(:pri1, worker, args)
+  end
+
+  @doc false
+  def pri2(worker, args) do
+    add(:pri2, worker, args)
+  end
+
+  @doc false
+  def pri3(worker, args) do
+    add(:pri3, worker, args)
+  end
+
+  def remote_add(remote, worker, args) do
+    :rpc.call(remote, __MODULE__, :add, [worker, args])
+  end
+
+  def remote_add(remote, priority, worker, args) do
+    :rpc.call(remote, __MODULE__, :add, [priority, worker, args])
+  end
+
+  def remote_async_add(remote, worker, args) do
+    :rpc.cast(remote, __MODULE__, :add, [worker, args])
+    :ok
+  end
+
+  def remote_async_add(remote, priority, worker, args) do
+    :rpc.cast(remote, __MODULE__, :add, [priority, worker, args])
+    :ok
+  end
 
 
   @doc false

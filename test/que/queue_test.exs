@@ -6,8 +6,26 @@ defmodule Que.Test.Queue do
 
   alias Que.Test.Meta.Helpers
   alias Que.Test.Meta.TestWorker
+  alias Que.Test.Meta.TestShardWorker
   alias Que.Test.Meta.ConcurrentWorker
 
+  test "#shard worker for cases where throughput more critical than sequence" do
+    q = Queue.new(TestShardWorker.Shard1)
+    assert q.__struct__     == Queue
+    assert q.worker         == TestShardWorker.Shard1
+    assert Queue.queued(q)  == []
+    assert Queue.running(q) == []
+  end
+
+  test "#shard worker for cases where throughput more critical than sequence - invoke" do
+    capture = Helpers.capture_log(fn ->
+      alias Que.Test.Meta.TestShardWorker
+      Que.add(TestShardWorker, :test)
+      Helpers.wait
+      Process.sleep(50)
+    end)
+    assert capture =~ ~r/Completed Job.*TestShardWorker.Shard/
+  end
 
   test "#new builds a new job queue with defaults" do
     q = Queue.new(TestWorker)
@@ -20,28 +38,33 @@ defmodule Que.Test.Queue do
 
 
   test "#new builds a new job queue with specified jobs" do
-    q = Queue.new(TestWorker, [1, 2, 3])
+    q = Queue.new(TestWorker, as_jobs([1, 2, 3]))
 
     assert q.__struct__    == Queue
-    assert Queue.queued(q) == [1, 2, 3]
+    assert Queue.queued(q) == as_jobs([1, 2, 3])
   end
 
 
   test "#queued returns list of queued jobs in the queue" do
-    j1 = []
-    j2 = [1,2,3,4,5,6,7]
+    j1 = as_jobs([])
+    j2 = as_jobs([1,2,3,4,5,6,7])
 
-    q1 = %Queue{queued: :queue.from_list(j1)}
-    q2 = %Queue{queued: :queue.from_list(j2)}
+    q1 = q_fixture(j1)
+    q2 = q_fixture(j2)
 
     assert Queue.queued(q1) == j1
     assert Queue.queued(q2) == j2
   end
 
+  test "#queued should return items in order of priority" do
+    expected = [as_job(5, :pri0), as_job(4, :pri1), as_job(8, :pri2), as_job(1, :pri3), as_job(2, :pri3), as_job(3, :pri3)]
+    q1 = q_fixture(%{pri0: [5], pri1: [4], pri2: [8], pri3: [1,2,3]})
+    assert Queue.queued(q1) == expected
+  end
 
   test "#running returns list of running jobs in the queue" do
-    j1 = []
-    j2 = [1,2,3,4,5,6,7]
+    j1 = as_jobs([])
+    j2 = as_jobs([1,2,3,4,5,6,7])
 
     q1 = %Queue{running: j1}
     q2 = %Queue{running: j2}
@@ -52,33 +75,35 @@ defmodule Que.Test.Queue do
 
 
   test "#put adds a single job to the queued list" do
+    expected = as_jobs([1,2,3,4])
+
     q =
       TestWorker
-      |> Queue.new([1, 2, 3])
-      |> Queue.put(4)
+      |> Queue.new(as_jobs([1, 2, 3]))
+      |> Queue.put(as_job(4))
 
-    assert Queue.queued(q) == [1, 2, 3, 4]
+    assert Queue.queued(q) == expected
   end
 
 
   test "#put adds multiple jobs to the queued list" do
     q =
       TestWorker
-      |> Queue.new([1, 2, 3])
-      |> Queue.put([4, 5, 6, 7])
+      |> Queue.new(as_jobs([1, 2, 3]))
+      |> Queue.put(as_jobs([4, 5, 6, 7]))
 
-    assert Queue.queued(q) == [1, 2, 3, 4, 5, 6, 7]
+    assert Queue.queued(q) == as_jobs([1, 2, 3, 4, 5, 6, 7])
   end
 
 
   test "#fetch gets the next job in queue and removes it from the list" do
     {q, job} =
       TestWorker
-      |> Queue.new([1, 2, 3])
+      |> Queue.new(as_jobs([1, 2, 3]))
       |> Queue.fetch
 
-    assert job             == 1
-    assert Queue.queued(q) == [2, 3]
+    assert job             == as_job(1)
+    assert Queue.queued(q) == as_jobs([2, 3])
   end
 
 
@@ -109,6 +134,19 @@ defmodule Que.Test.Queue do
     assert capture =~ ~r/Starting/
   end
 
+  test "#process starts jobs in sequence of priority" do
+    capture = Helpers.capture_log(fn ->
+      q =
+        TestWorker
+        |> Queue.new([Job.new(TestWorker)])
+        |> Queue.process
+
+      assert [%Job{status: :started}] = Queue.running(q)
+      assert [] == Queue.queued(q)
+      Helpers.wait
+    end)
+    assert capture =~ ~r/Starting/
+  end
 
   test "#process does nothing when there is nothing in queue" do
     q_before = Queue.new(TestWorker)
@@ -197,8 +235,7 @@ defmodule Que.Test.Queue do
 
 
   test "#update updates a job in queued" do
-    q = %Queue{ queued: :queue.from_list(sample_job_list()), running: [] }
-
+    q = q_fixture(%{pri1: sample_job_list(:pri1)}, [])
     [_, _, _, job | _] = Queue.queued(q)
     assert job.id     == :x
     assert job.status == :failed
@@ -211,7 +248,7 @@ defmodule Que.Test.Queue do
 
 
   test "#update updates a job in running" do
-    q = %{ running: [_, _, _, job | _] } = %Queue{ queued: :queue.from_list([]), running: sample_job_list() }
+    q = %{ running: [_, _, _, job | _] } = q_fixture(%{}, sample_job_list())
 
     assert job.id     == :x
     assert job.status == :failed
@@ -246,15 +283,62 @@ defmodule Que.Test.Queue do
 
 
   ## Private
+  ## Private
+  defp q_fixture(q) do
+    q_fixture(q, [])
+  end
 
-  defp sample_job_list do
+  defp q_fixture(queues, running, as_jobs \\ true, worker \\ TestWorker, rpri \\ :pri0)
+
+  defp q_fixture(queues, running, as_jobs, worker, rpri) when is_list(queues) do
+    q_fixture(%{rpri => queues}, running, as_jobs, worker, rpri)
+  end
+
+  defp q_fixture(queues, running, as_jobs, worker, rpri) do
+    if as_jobs do
+      queued = %{
+        pri0: :queue.from_list(as_jobs(queues[:pri0] || [], :pri0, worker)),
+        pri1: :queue.from_list(as_jobs(queues[:pri1] || [], :pri1, worker)),
+        pri2: :queue.from_list(as_jobs(queues[:pri2] || [], :pri2, worker)),
+        pri3: :queue.from_list(as_jobs(queues[:pri3] || [], :pri3, worker)),
+      }
+      running = as_jobs(running, rpri, worker)
+      %Queue{ queued: queued, running: running}
+    else
+      queued = %{
+        pri0: :queue.from_list(queues[:pri0] || []),
+        pri1: :queue.from_list(queues[:pri1] || []),
+        pri2: :queue.from_list(queues[:pri2] || []),
+        pri3: :queue.from_list(queues[:pri3] || []),
+      }
+      %Queue{ queued: queued, running: running}
+    end
+  end
+
+  defp as_job(entry, priority \\ :pri1, worker \\ TestWorker) do
+    case entry do
+      %Job{} -> entry
+      _ -> Job.new(worker, entry, priority)
+    end
+  end
+
+  defp as_jobs(entries, priority \\ :pri1, worker \\ TestWorker) do
+    Enum.map(entries, fn(entry) ->
+      case entry do
+        %Job{} -> entry
+        _ -> Job.new(worker, entry, priority)
+      end
+    end)
+  end
+
+  defp sample_job_list(priority \\ :pri1) do
     [
-      Job.new(TestWorker),
-      Job.new(TestWorker),
-      Job.new(TestWorker),
-      %Job{ worker: TestWorker, id: :x, status: :failed },
-      Job.new(TestWorker),
-      Job.new(TestWorker)
+      Job.new(TestWorker, nil, priority),
+      Job.new(TestWorker, nil, priority),
+      Job.new(TestWorker, nil, priority),
+      %Job{Job.new(TestWorker, nil, priority)|  id: :x, status: :failed },
+      Job.new(TestWorker, nil, priority),
+      Job.new(TestWorker, nil, priority)
     ]
   end
 end

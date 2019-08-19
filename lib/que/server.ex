@@ -3,6 +3,7 @@ defmodule Que.Server do
 
   @module __MODULE__
 
+  @async_add (Application.get_env(:que, :async_add) || false)
 
   @moduledoc """
   `Que.Server` is the `GenServer` responsible for processing all Jobs.
@@ -50,10 +51,18 @@ defmodule Que.Server do
 
   @doc false
   def add(worker, arg) do
-    GenServer.call(via_worker(worker), {:add_job, worker, arg})
+    add(:pri1, worker, arg)
   end
 
-
+  @doc false
+  def add(priority, worker, arg) do
+    if @async_add do
+      GenServer.cast(via_worker(worker), {:add_job, priority, worker, arg})
+      {:ok, nil}
+    else
+      GenServer.call(via_worker(worker), {:add_job, priority, worker, arg})
+    end
+  end
 
 
   # Initial State with Empty Queue and a list of currently running jobs
@@ -77,12 +86,12 @@ defmodule Que.Server do
   # Pushes a new Job to the queue and processes it
 
   @doc false
-  def handle_call({:add_job, worker, args}, _from, queue) do
+  def handle_call({:add_job, priority, worker, args}, _from, queue) do
     Que.Helpers.log("Queued new Job for #{ExUtils.Module.name(worker)}")
 
     job =
       worker
-      |> Que.Job.new(args)
+      |> Que.Job.new(args, priority)
       |> Que.Persistence.insert
 
     queue =
@@ -93,7 +102,22 @@ defmodule Que.Server do
     {:reply, {:ok, job}, queue}
   end
 
+  @doc false
+  def handle_cast({:add_job, priority, worker, args}, queue) do
+    Que.Helpers.log("Queued new Job for #{ExUtils.Module.name(worker)}")
 
+    job =
+      worker
+      |> Que.Job.new(args, priority)
+      |> Que.Persistence.insert
+
+    queue =
+      queue
+      |> Que.Queue.put(job)
+      |> Que.Queue.process
+
+    {:noreply, queue}
+  end
 
 
   # Job was completed successfully - Does cleanup and executes the Success
@@ -117,9 +141,24 @@ defmodule Que.Server do
 
 
 
+  @doc false
+  def handle_info({:DOWN, ref, :process, pid, :noproc}, queue) do
+    # Process exited before Monitor.process registration could occur. It most likely succeeded.
+    job =
+      queue
+      |> Que.Queue.find(:ref, ref)
+      |> Que.Job.handle_success
+      |> Que.Persistence.update
+
+    queue =
+      queue
+      |> Que.Queue.remove(job)
+      |> Que.Queue.process
+
+    {:noreply, queue}
+  end
 
   # Job failed / crashed - Does cleanup and executes the Error callback
-
   @doc false
   def handle_info({:DOWN, ref, :process, _pid, err}, queue) do
     job =

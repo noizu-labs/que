@@ -1,5 +1,5 @@
 defmodule Que.Job do
-  defstruct  [:id, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at]
+  defstruct  [:id, :node, :priority, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at]
   ## Note: Update Que.Persistence.Mnesia after changing these values
 
 
@@ -19,15 +19,14 @@ defmodule Que.Job do
   @typedoc  "A `Que.Job` struct"
   @type     t :: %Que.Job{}
 
-
-
-
   @doc """
   Returns a new Job struct with defaults
   """
-  @spec new(worker :: Que.Worker.t, args :: list) :: Que.Job.t
-  def new(worker, args \\ nil) do
+  @spec new(worker :: Que.Worker.t, args :: list, priority :: :pri0 | :pri1 | :pri2 | :pri3, node :: atom) :: Que.Job.t
+  def new(worker, args \\ nil, priority \\ :pri0, node \\ nil) do
     %Que.Job{
+      node: node || node(),
+      priority: priority,
       status:    :queued,
       worker:    worker,
       arguments: args
@@ -35,6 +34,29 @@ defmodule Que.Job do
   end
 
 
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri0(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri0(worker, args \\ nil), do: new(worker, args, :pri0)
+
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri1(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri1(worker, args \\ nil), do: new(worker, args, :pri1)
+
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri2(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri2(worker, args \\ nil), do: new(worker, args, :pri2)
+
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri3(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri3(worker, args \\ nil), do: new(worker, args, :pri3)
 
 
   @doc """

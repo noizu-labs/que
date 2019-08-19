@@ -11,10 +11,7 @@ defmodule Que.Persistence do
 
 
   ## Adapter to delegate all methods to
-  @adapter Que.Persistence.Mnesia
-
-
-
+  @adapter (Application.get_env(:que, :persistence_strategy) || Que.Persistence.Mnesia)
 
   @doc """
   Finds a `Que.Job` from the database.

@@ -4,7 +4,7 @@ defmodule Que.Mixfile do
   @app     :que
   @name    "Que"
   @version "0.10.1"
-  @github  "https://github.com/sheharyarn/#{@app}"
+  @github  "https://github.com/noizu/#{@app}"
 
 
   # NOTE:
@@ -59,19 +59,20 @@ defmodule Que.Mixfile do
 
 
   defp description do
-    "Simple Background Job Processing with Mnesia"
+    "Simple Background Job Processing with Mnesia, with Task Priority and MultiNode support."
   end
 
   # Compilation Paths
   defp elixirc_paths(:dev),  do: elixirc_paths(:test)
   defp elixirc_paths(:test), do: ["lib", "test/support.ex"]
+  defp elixirc_paths(:noizu_test), do: ["lib", "test/support.ex"]
   defp elixirc_paths(_),     do: ["lib"]
 
 
   defp package do
     [
       name: @app,
-      maintainers: ["Sheharyar Naseer"],
+      maintainers: ["Keith Brings"],
       licenses: ["MIT"],
       files: ~w(mix.exs lib README.md),
       links: %{"Github" => @github}

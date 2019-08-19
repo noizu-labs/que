@@ -1,4 +1,6 @@
-[<img src='https://i.imgur.com/Eec71eh.png' alt='Que' width='200px' />][docs]
+[<img src='https://i.imgur.com/Eec71eh.png' alt='Que' width='200px' />][docs] 
+
+The Noizu Labs, Inc. Fork
 =============================================================================
 
 [![Build Status][shield-travis]][travis-ci]
@@ -20,14 +22,130 @@ See the [Documentation][docs].
 
 
 
+# This @noizu fork adds some experimental features. 
 
-## Installation
+## Priority may now be specified when queues jobs. 
+  Only the values :pri0, :pri1, :pri2, :pri3 are currently available. 
+  Jobs with :pri0 will execute before jobs with :pri1. 
+  Jobs with :pri1 will execute before jobs with :pri2, etc.
+
+  ```elixir
+    # Create with default priority :pri1
+    Que.add(App.Workers.ImageConverter, some_image)
+     
+    # Specify Priority 
+    Que.add(:pri0, App.Workers.ImageConverter, some_image)
+    
+    # Convienence methods. 
+    Que.pri0(App.Workers.ImageConverter, some_image)
+    Que.pri1(App.Workers.ImageConverter, some_image)
+    Que.pri2(App.Workers.ImageConverter, some_image)
+    Que.pri3(App.Workers.ImageConverter, some_image)        
+  ```
+
+## ShardWorkers
+  Available for situations where the GenServer call and queue update tasks themselves  become a bottle neck. 
+  In shard workers the provided concurrency values controls the number of servers created with server processing one job
+  at a time. Jobs are queued in the same was as to regular workers but the actual job is pushed randomly to one
+  of the available shards. E.g. `Que.add(ShardWorker, :test)` pushes to `ShardWorker.Shard16`
+      
+  ShardWorkers are configured like standard workers.     
+```elixir
+    defmodule App.Workers.ImageConverter do
+      use Que.ShardWorker
+    
+      def perform(image) do
+        ImageTool.save_resized_copy!(image, :thumbnail)
+        ImageTool.save_resized_copy!(image, :medium)
+      end
+    end
+    
+    Que.add(App.Workers.ImageConverter)
+```    
+
+## Dirty Operations & Throughput Optimization, Pluggable DB Adapters
+  These changes all favor throughput over data correctness and, in the case of the ShardWorker change, order of execution.
+  
+  ### Plugable Database Adapters 
+  
+  A user may switch to dirty mnesia operations to avoid mnesia transaction bottle necks under high load.
+  Additionally a more efficient auto increment implement has been provided to avoid table scans against very large data sets.    
+  
+  Add to your Config File to use: 
+  `config :que, persistence_strategy: Que.Persistence.DirtyMnesia`
+  
+  ### Async Job Creation
+  
+  Replaced GenServer.Call for add worker with GenServer.cast to allow workers to pool up with out waiting on 
+  confirmation. Note this breaks new functionality for returning job details on create. 
+  
+  Add to your Config File to use: 
+  `config :que, async_add: true`
+  
+  ### Error Handler for very rapid process responses,
+  Modified Process Monitor handler to treat :noproc responses (usually due to process completing 
+  before the Monitor has been bound) as success. 
+    
+
+## Distributed System Tweaks
+  Schema and queries have been modified to include the host node 
+  this allows you to host persistent queues on multiple servers with
+  out the tasks being duplicated on across nodes after restart. 
+  Calls have been added to specify host queue.  
+  
+  In the future this may additionally be used in conjuction with a coordinater mechanism to  
+  load balance tasks across servers.
+
+  Add to your Config File to use: 
+  `config :que, multi_tenant: true`
+  
+  ```elixir
+    # remote_add uses :rpc.call
+    Que.remote_add(:"node_in_cluster@domain.com", DistributedWorker, arguments) 
+    Que.remote_add(:"node_in_cluster@domain.com", :pri3, DistributedWorker, arguments)
+    
+    # remote_async_add uses :rpc.cast
+    Que.remote_async_add(:"node_in_cluster@domain.com", DistributedWorker, arguments) 
+    Que.remote_async_add(:"node_in_cluster@domain.com", :pri3, DistributedWorker, arguments)
+  ```
+  
+  Although in the future I may will add load balancing support and availabilty checks you may implement crude balancing
+  on your own using a randomized or round robing approach. 
+  
+  ### Example Randomized Load Balancer
+  ```elixir
+    # You may implement a very simple randomized load balancer such as
+    cluser = [:"node1@domain.com", :"node2@domaint.com"] 
+    Que.remote_async_add(Enum.random(cluster), DistributedWorker, arguments) 
+  ```
+    
+  ### Example Round Robin Load Balancer 
+  ```elixir
+    @table :round_robin_cluster
+    :ets.new(@table, [:set, :public, :named_table, {:write_concurrency, true}])
+    
+    cluster = [:"node1@domain.com", :"node2@domaint.com"]
+    cluster_size = length(cluster)         
+
+    index = :ets.update_counter(@table, DistributedWorker, {2, 1, cluster_size - 1, 0}, {DistributedWorker, 0})     
+    Que.remote_async_add(Enum.at(cluster, index), DistributedWorker, [argument: :list])
+  ```
+
+## Breaking Changes 
+  Functionality will be very similar to stock QUE behavior if not configuration options are selected,
+  however the Jobs table has been updated to include a node and priority filed and will need to be regenerated if migrating to this fork.
+
+## Running Tests 
+  To run tests with the experimental features enabled simply run
+  `MIX_ENV=noizu_test mix test`
+    
+# Installation
 
 Add `que` to your project dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:que, "~> 0.10.1"}]
+  [{:que, github: "noizu/que", tag: "0.10.1"}]  
 end
 ```
 
@@ -40,7 +158,7 @@ end
 ```
 
 
-### Mnesia Setup
+## Mnesia Setup
 
 Que runs out of the box, but by default all jobs are stored in-memory.
 To persist jobs across application restarts, specify the DB path in
@@ -66,7 +184,7 @@ compiled releases where `Mix` is not available
 
 
 
-## Usage
+# Usage
 
 Que is very similar to other job processing libraries such as Ku and
 Toniq. Start by defining a [`Worker`][docs-worker] with a `perform/1`
@@ -91,7 +209,7 @@ Que.add(App.Workers.ImageConverter, some_image)
 ```
 
 
-### Pattern Matching
+## Pattern Matching
 
 The argument here can be any term from a Tuple to a Keyword List
 or a Struct. You can also pattern match and use guard clauses like
@@ -116,7 +234,7 @@ end
 ```
 
 
-### Concurrency
+## Concurrency
 
 By default, all workers process one Job at a time, but you can
 customize that by passing the `concurrency` option:
@@ -132,7 +250,7 @@ end
 ```
 
 
-### Job Success / Failure Callbacks
+## Job Success / Failure Callbacks
 
 The worker can also export optional `on_success/1` and `on_failure/2`
 callbacks that handle appropriate cases.
@@ -156,10 +274,17 @@ defmodule App.Workers.ReportBuilder do
     Logger.error("Could not generate report #{report.id}. Reason: #{inspect(error)}")
   end
 end
+
+# Allowing for syntactically pretty api calls such as 
+Que.add(App.Workers.NotificationSender, type: :message, to: "keith", from: "admin")
+# Or less ambigiously
+Que.add(App.Workers.NotificationSender, [type: :message, to: "keith", from: "admin"])
+
+
 ```
 
 
-### Setup and Teardown
+## Setup and Teardown
 
 You can similarly export optional `on_setup/1` and `on_teardown/1` callbacks
 that are respectively run before and after the job is performed (successfully
@@ -188,6 +313,7 @@ defmodule MyApp.Workers.VideoProcessor do
     User.notify(user, "We've finished processing your video. See the results.", link)
   end
 end
+
 ```
 
 
@@ -198,7 +324,7 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 
 
-## Roadmap
+# Roadmap
 
  - [x] Write Documentation
  - [x] Write Tests
@@ -228,7 +354,7 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 
 
-## Contributing
+# Contributing
 
  - [Fork][github-fork], Enhance, Send PR
  - Lock issues with any bugs or feature requests
@@ -240,7 +366,7 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 
 
-## License
+# License
 
 This package is available as open source under the terms of the [MIT License][license].
 
@@ -269,4 +395,5 @@ This package is available as open source under the terms of the [MIT License][li
   [docs-setup-prod]:  https://hexdocs.pm/que/Que.Persistence.Mnesia.html#setup!/0
 
   [github-fork]:      https://github.com/sheharyarn/que/fork
+  
 
