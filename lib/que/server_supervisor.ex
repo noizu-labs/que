@@ -56,6 +56,18 @@ defmodule Que.ServerSupervisor do
       catch _ -> false
     end
 
+    add(:pri1, worker, args)
+  end
+
+  @doc false
+  def add(priority, worker, args) do
+
+    is_shard = try do
+      worker._is_shard?
+    rescue _ -> false
+    catch _ -> false
+    end
+
     if is_shard do
       shards = worker._shards()
       pick = :"Shard#{:rand.uniform(shards)}"
@@ -131,7 +143,7 @@ defmodule Que.ServerSupervisor do
       Que.Persistence.incomplete
       |> Enum.map(&(&1.worker))
       |> Enum.uniq
-      |> Enum.partition(&Que.Worker.valid?/1)
+      |> Enum.split_with(&Que.Worker.valid?/1)
 
     # Notify user about pending jobs for Invalid Workers
     if length(invalid) > 0 do

@@ -38,6 +38,7 @@ defmodule Que.Test.Queue do
 
   test "#new builds a new job queue with specified jobs" do
     q = Queue.new(TestWorker, as_jobs([1, 2, 3]))
+
     assert q.__struct__    == Queue
     assert Queue.queued(q) == as_jobs([1, 2, 3])
   end
@@ -73,10 +74,12 @@ defmodule Que.Test.Queue do
 
   test "#put adds a single job to the queued list" do
     expected = as_jobs([1,2,3,4])
+
     q =
       TestWorker
       |> Queue.new(as_jobs([1, 2, 3]))
       |> Queue.put(as_job(4))
+
     assert Queue.queued(q) == expected
   end
 
@@ -141,6 +144,19 @@ defmodule Que.Test.Queue do
     assert capture =~ ~r/Starting/
   end
 
+  test "#process starts jobs in sequence of priority" do
+    capture = Helpers.capture_log(fn ->
+      q =
+        TestWorker
+        |> Queue.new([Job.new(TestWorker)])
+        |> Queue.process
+
+      assert [%Job{status: :started}] = Queue.running(q)
+      assert [] == Queue.queued(q)
+      Helpers.wait
+    end)
+    assert capture =~ ~r/Starting/
+  end
 
 
   test "#process does nothing when there is nothing in queue" do
@@ -243,6 +259,7 @@ defmodule Que.Test.Queue do
 
   test "#update updates a job in running" do
     q = %{ running: [_, _, _, job | _] } = q_fixture(%{}, sample_job_list())
+
     assert job.id     == :x
     assert job.status == :failed
 
@@ -273,6 +290,7 @@ defmodule Que.Test.Queue do
     end)
   end
 
+  ## Private
   ## Private
   defp q_fixture(q) do
     q_fixture(q, [])
@@ -306,10 +324,10 @@ defmodule Que.Test.Queue do
   end
 
   defp as_job(entry, priority \\ :pri1, worker \\ TestWorker) do
-      case entry do
-        %Job{} -> entry
-        _ -> Job.new(worker, entry, priority)
-      end
+    case entry do
+      %Job{} -> entry
+      _ -> Job.new(worker, entry, priority)
+    end
   end
 
   defp as_jobs(entries, priority \\ :pri1, worker \\ TestWorker) do

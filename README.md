@@ -1,4 +1,6 @@
-[<img src='https://i.imgur.com/Eec71eh.png' alt='Que' width='200px' />][docs]
+[<img src='https://i.imgur.com/Eec71eh.png' alt='Que' width='200px' />][docs] 
+
+The Noizu Labs, Inc. Fork
 =============================================================================
 
 [![Build Status][shield-travis]][travis-ci]
@@ -17,6 +19,8 @@ than Que itself.
 See the [Documentation][docs].
 
 <br>
+
+
 
 # This @noizu fork adds some experimental features. 
 
@@ -59,17 +63,29 @@ See the [Documentation][docs].
     Que.add(App.Workers.ImageConverter)
 ```    
 
-## Dirty Operations & Throughput Optimization
-  Bypass Memento (Temporary will make configurable) to allow dirty read/writes due to performance bottlenecks 
-  under high throughput and cyclic errors under load when handling shard workers.  
- 
-  Replaced GenServer.Call for add worker with GenServer.cast to allow workers to pool up with out waiting on 
-  confirmation.
+## Dirty Operations & Throughput Optimization, Pluggable DB Adapters
+  These changes all favor throughput over data correctness and, in the case of the ShardWorker change, order of execution.
   
+  ### Plugable Database Adapters 
+  
+  A user may switch to dirty mnesia operations to avoid mnesia transaction bottle necks under high load.
+  Additionally a more efficient auto increment implement has been provided to avoid table scans against very large data sets.    
+  
+  Add to your Config File to use: 
+  `config :que, persistence_strategy: Que.Persistence.DirtyMnesia`
+  
+  ### Async Job Creation
+  
+  Replaced GenServer.Call for add worker with GenServer.cast to allow workers to pool up with out waiting on 
+  confirmation. Note this breaks new functionality for returning job details on create. 
+  
+  Add to your Config File to use: 
+  `config :que, async_add: true`
+  
+  ### Error Handler for very rapid process responses,
   Modified Process Monitor handler to treat :noproc responses (usually due to process completing 
   before the Monitor has been bound) as success. 
-  
-  These changes all favor throughput over data correctness and, in the case of the ShardWorker change, order of execution.
+    
 
 ## Distributed System Tweaks
   Schema and queries have been modified to include the host node 
@@ -79,6 +95,9 @@ See the [Documentation][docs].
   
   In the future this may additionally be used in conjuction with a coordinater mechanism to  
   load balance tasks across servers.
+
+  Add to your Config File to use: 
+  `config :que, multi_tenant: true`
   
   ```elixir
     # remote_add uses :rpc.call
@@ -111,18 +130,22 @@ See the [Documentation][docs].
     index = :ets.update_counter(@table, DistributedWorker, {2, 1, cluster_size - 1, 0}, {DistributedWorker, 0})     
     Que.remote_async_add(Enum.at(cluster, index), DistributedWorker, [argument: :list])
   ```
-  
-- d
 
-## Installation
+## Breaking Changes 
+  Functionality will be very similar to stock QUE behavior if not configuration options are selected,
+  however the Jobs table has been updated to include a node and priority filed and will need to be regenerated if migrating to this fork.
+
+## Running Tests 
+  To run tests with the experimental features enabled simply run
+  `MIX_ENV=noizu_test mix test`
+    
+# Installation
 
 Add `que` to your project dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [
-    {:que, github: "noizu/que", tag: "0.7.1"},
-  ]
+  [{:que, github: "noizu/que", tag: "0.10.1"}]  
 end
 ```
 
@@ -133,7 +156,8 @@ def application do
 end
 ```
 
-### Mnesia Setup
+
+## Mnesia Setup
 
 Que runs out of the box, but by default all jobs are stored in-memory.
 To persist jobs across application restarts, specify the DB path in
@@ -159,7 +183,7 @@ compiled releases where `Mix` is not available
 
 
 
-## Usage
+# Usage
 
 Que is very similar to other job processing libraries such as Ku and
 Toniq. Start by defining a [`Worker`][docs-worker] with a `perform/1`
@@ -180,11 +204,11 @@ You can now add jobs to be processed by the worker:
 
 ```elixir
 Que.add(App.Workers.ImageConverter, some_image)
-#=> :ok
+#=> {:ok, %Que.Job{...}}
 ```
 
 
-### Pattern Matching
+## Pattern Matching
 
 The argument here can be any term from a Tuple to a Keyword List
 or a Struct. You can also pattern match and use guard clauses like
@@ -215,7 +239,7 @@ Que.add(App.Workers.NotificationSender, [type: :message, to: "keith", from: "adm
 ```
 
 
-### Concurrency
+## Concurrency
 
 By default, all workers process one Job at a time, but you can
 customize that by passing the `concurrency` option:
@@ -231,7 +255,7 @@ end
 ```
 
 
-### Job Success / Failure Callbacks
+## Job Success / Failure Callbacks
 
 The worker can also export optional `on_success/1` and `on_failure/2`
 callbacks that handle appropriate cases.
@@ -255,13 +279,57 @@ defmodule App.Workers.ReportBuilder do
     Logger.error("Could not generate report #{report.id}. Reason: #{inspect(error)}")
   end
 end
+
+# Allowing for syntactically pretty api calls such as 
+Que.add(App.Workers.NotificationSender, type: :message, to: "keith", from: "admin")
+# Or less ambigiously
+Que.add(App.Workers.NotificationSender, [type: :message, to: "keith", from: "admin"])
+
+
 ```
+
+
+## Setup and Teardown
+
+You can similarly export optional `on_setup/1` and `on_teardown/1` callbacks
+that are respectively run before and after the job is performed (successfully
+or not). But instead of the job arguments, they pass the job struct as an
+argument which holds a lot more internal details that can be useful for custom
+features such as logging, metrics, requeuing and more.
+
+```elixir
+defmodule MyApp.Workers.VideoProcessor do
+  use Que.Worker
+
+  def on_setup(%Que.Job{} = job) do
+    VideoMetrics.record(job.id, :start, process: job.pid, status: :starting)
+  end
+
+  def perform({user, video, options}) do
+    User.notify(user, "Your video is processing, check back later.")
+    FFMPEG.process(video.path, options)
+  end
+
+  def on_teardown(%Que.Job{} = job) do
+    {user, video, _options} = job.arguments
+    link = MyApp.Router.video_path(user.id, video.id)
+
+    VideoMetrics.record(job.id, :end, status: job.status)
+    User.notify(user, "We've finished processing your video. See the results.", link)
+  end
+end
+
+```
+
 
 Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 <br>
 
-## Roadmap
+
+
+
+# Roadmap
 
  - [x] Write Documentation
  - [x] Write Tests
@@ -274,6 +342,12 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
  - [x] Find a more reliable replacement for Amnesia
  - [ ] Delayed Jobs
  - [ ] Allow job cancellation
+ - [ ] Job Priority
+ - [ ] Support running in a multi-node enviroment
+    - [ ] Recover from node failures
+ - [ ] Support for more Persistence Adapters
+    - [ ] Redis
+    - [ ] Postgres
  - [x] Mix Task for creating Mnesia Database
  - [ ] Better Job Failures
     - [ ] Option to set timeout on workers
@@ -282,7 +356,10 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 <br>
 
-## Contributing
+
+
+
+# Contributing
 
  - [Fork][github-fork], Enhance, Send PR
  - Lock issues with any bugs or feature requests
@@ -291,7 +368,10 @@ Head over to Hexdocs for detailed [`Worker` documentation][docs-worker].
 
 <br>
 
-## License
+
+
+
+# License
 
 This package is available as open source under the terms of the [MIT License][license].
 
@@ -317,4 +397,5 @@ This package is available as open source under the terms of the [MIT License][li
   [docs-setup-prod]:  https://hexdocs.pm/que/Que.Persistence.Mnesia.html#setup!/0
 
   [github-fork]:      https://github.com/sheharyarn/que/fork
+  
 

@@ -24,6 +24,8 @@ defmodule Que.Queue do
 
   @priority_levels [:pri0, :pri1, :pri2, :pri3]
 
+  @priority_levels [:pri0, :pri1, :pri2, :pri3]
+
   @doc """
   Returns a new processable Queue with defaults
   """
@@ -36,7 +38,7 @@ defmodule Que.Queue do
 
     %Que.Queue{
       worker:  worker,
-      queued: queued,
+      queued:  queued,
       running: []
     }
   end
@@ -93,12 +95,12 @@ defmodule Que.Queue do
   Fetches the next Job in queue and returns a queue and Job tuple
   """
   @spec fetch(queue :: Que.Queue.t) :: { Que.Queue.t, Que.Job.t | nil }
-  def fetch(%Que.Queue{queued: queued} = q) do
+  def fetch(%Que.Queue{queued: queue} = q) do
     Enum.reduce_while(@priority_levels, nil,
       fn(pri, _acc) ->
-        case :queue.out(queued[pri]) do
+        case :queue.out(queue[pri]) do
           {{:value, job}, rest} ->
-            {:halt, { %{q | queued: put_in(queued, [pri], rest) }, job }}
+            {:halt, { %{q | queued: put_in(queue, [pri], rest) }, job }}
           {:empty, _} -> {:cont, nil}
         end
       end
@@ -177,7 +179,7 @@ defmodule Que.Queue do
     Enum.map(@priority_levels, &(:queue.to_list(queued[&1]))) |> List.flatten()
   end
 
-  @spec queued(queue :: Que.Queue.t, pri) :: list(Que.Job.t)
+  @spec queued(queue :: Que.Queue.t, pri :: pri) :: list(Que.Job.t)
   def queued(%Que.Queue{queued: queued}, pri) do
     :queue.to_list(queued[pri])
   end

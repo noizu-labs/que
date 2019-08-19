@@ -110,7 +110,7 @@ defmodule Que do
   #=> :ok
   ```
   """
-  @spec add(worker :: module, arguments :: term) :: :ok
+  @spec add(worker :: module, arguments :: term) :: {:ok, %Que.Job{}}
   defdelegate add(worker, arguments), to: Que.ServerSupervisor
 
   @spec add(priority :: atom, worker :: module, arguments :: term) :: :ok
@@ -140,5 +140,6 @@ defmodule Que do
 
   @spec pri3(worker :: module, arguments :: term) :: :ok
   defdelegate pri3(worker, arguments), to: Que.ServerSupervisor
+
 end
 

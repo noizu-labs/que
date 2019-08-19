@@ -1,6 +1,5 @@
-defmodule Que.Persistence.Mnesia do
+defmodule Que.Persistence.DirtyMnesia do
   use Que.Persistence
-  require Logger
 
   @moduledoc """
   Mnesia adapter to persist `Que.Job`s
@@ -39,12 +38,14 @@ defmodule Que.Persistence.Mnesia do
   and Tables.
   """
 
-
-
   @config [db: DB, table: Jobs]
-  @db     Module.concat(__MODULE__, @config[:db])
+  @db     Module.concat(Que.Persistence.Mnesia, @config[:db])
   @store  Module.concat(@db, @config[:table])
   @auto_inc Module.concat([@db, AUIN])
+
+  @db_handler     Module.concat(__MODULE__, @config[:db])
+  @store_handler  Module.concat(@db, @config[:table])
+  @auto_inc_handler Module.concat([@db, AUIN])
 
   @doc """
   Creates the Mnesia Database for `Que` on disk
@@ -99,10 +100,11 @@ defmodule Que.Persistence.Mnesia do
 
     # Create the DB with Disk Copies
     Memento.Table.create!(@store, disc_copies: nodes)
+    Memento.Table.create!(@auto_inc, disc_copies: nodes)
 
     # @TODO Use Memento.Table.wait when it gets implemented
     # Wait for Tables.
-    case :mnesia.wait_for_tables([@store], 15000) do
+    case :mnesia.wait_for_tables([@store, @auto_inc], 15000) do
       :ok -> :ok
       e -> IO.puts "Error Creating Que Tables [#{inspect e}]"
     end
@@ -117,6 +119,7 @@ defmodule Que.Persistence.Mnesia do
     [
       database: @db,
       table:    @store,
+      auto_increment_table:     @auto_inc,
       path:     Path.expand(Application.get_env(:mnesia, :dir))
     ]
   end
@@ -135,12 +138,13 @@ defmodule Que.Persistence.Mnesia do
   def initialize do
     Memento.Table.create(@store)
     Memento.Table.create(@auto_inc)
+
     Enum.reduce_while(1..1_000, 0, fn(i, acc) ->
       w = (i + 10) * 1_000
       case :mnesia.wait_for_tables([@store, @auto_inc], w)  do
         :ok -> {:halt, acc}
         _ ->
-          Logger.warn "QUE: Waiting on Tables - #{i}}"
+          IO.puts "QUE: Waiting on Tables - #{i}}"
           {:cont, acc + w}
       end
     end)
@@ -148,20 +152,21 @@ defmodule Que.Persistence.Mnesia do
     case :mnesia.wait_for_tables([@store, @auto_inc], 5_000)  do
       :ok -> :ok
       _ ->
-        Logger.warn "QUE: Waiting on Tables - hard wait"
+        IO.puts "QUE: Waiting on Tables - hard wait"
         :mnesia.wait_for_tables([@store, @auto_inc], :infinity)
         :ok
     end
-
   end
-
 
   # Cleans up Mnesia DB
   def reset do
-    Memento.Table.delete(Que.Persistence.Mnesia.DB.Jobs)
-    Memento.Table.create(Que.Persistence.Mnesia.DB.Jobs)
+    Memento.Table.delete(@store)
+    Memento.Table.create(@store)
 
-    case :mnesia.wait_for_tables([@store], 15000) do
+    Memento.Table.delete(@auto_inc)
+    Memento.Table.create(@auto_inc)
+
+    case :mnesia.wait_for_tables([@store, @auto_inc], 15000) do
       :ok -> :ok
       e -> IO.puts "Error Creating Que Tables [#{inspect e}]"
     end
@@ -170,45 +175,45 @@ defmodule Que.Persistence.Mnesia do
   # Deletes the Mnesia DB from disk and creates a fresh one in memory
   def reset! do
       Memento.stop
-      File.rm_rf!(Que.Persistence.Mnesia.__config__[:path])
+      File.rm_rf!(Que.Persistence.DirtyMnesia.__config__[:path])
       Memento.start
       reset()
   end
 
   @doc false
-  defdelegate all,                to: @store,   as: :all_jobs
+  defdelegate all,                to: @store_handler,   as: :all_jobs
 
   @doc false
-  defdelegate all(worker),        to: @store,   as: :all_jobs
+  defdelegate all(worker),        to: @store_handler,   as: :all_jobs
 
   @doc false
-  defdelegate completed,          to: @store,   as: :completed_jobs
+  defdelegate completed,          to: @store_handler,   as: :completed_jobs
 
   @doc false
-  defdelegate completed(worker),  to: @store,   as: :completed_jobs
+  defdelegate completed(worker),  to: @store_handler,   as: :completed_jobs
 
   @doc false
-  defdelegate incomplete,         to: @store,   as: :incomplete_jobs
+  defdelegate incomplete,         to: @store_handler,   as: :incomplete_jobs
 
   @doc false
-  defdelegate incomplete(worker), to: @store,   as: :incomplete_jobs
+  defdelegate incomplete(worker), to: @store_handler,   as: :incomplete_jobs
 
   @doc false
-  defdelegate failed,             to: @store,   as: :failed_jobs
+  defdelegate failed,             to: @store_handler,   as: :failed_jobs
 
   @doc false
-  defdelegate failed(worker),     to: @store,   as: :failed_jobs
+  defdelegate failed(worker),     to: @store_handler,   as: :failed_jobs
 
   @doc false
-  defdelegate find(job),          to: @store,   as: :find_job
+  defdelegate find(job),          to: @store_handler,   as: :find_job
 
   @doc false
-  defdelegate insert(job),        to: @store,   as: :create_job
+  defdelegate insert(job),        to: @store_handler,   as: :create_job
 
   @doc false
-  defdelegate update(job),        to: @store,   as: :update_job
+  defdelegate update(job),        to: @store_handler,   as: :update_job
 
   @doc false
-  defdelegate destroy(job),       to: @store,   as: :delete_job
+  defdelegate destroy(job),       to: @store_handler,   as: :delete_job
 
 end

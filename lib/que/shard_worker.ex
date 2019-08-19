@@ -15,12 +15,17 @@ defmodule Que.ShardWorker do
           defdelegate perform(t), to: @module
           defdelegate on_success(t), to: @module
           defdelegate on_failure(t, e), to: @module
+          defdelegate on_setup(j), to: @module
+          defdelegate on_teardown(j), to: @module
         end
       end
 
       def _shards(), do: @shards
 
+      def __que_worker__, do: true
+
       def _is_shard?, do: true
+
 
       ## Default implementations of on_success and on_failure callbacks
 
@@ -28,12 +33,19 @@ defmodule Que.ShardWorker do
       end
 
 
-      def on_failure(arg, err) do
-        IO.puts "FAILRE: #{inspect arg}, #{inspect err}"
+      def on_failure(_arg, _err) do
       end
 
 
-      defoverridable [on_success: 1, on_failure: 2]
+      def on_setup(_job) do
+      end
+
+
+      def on_teardown(_job) do
+      end
+
+
+      defoverridable [on_success: 1, on_failure: 2, on_setup: 1, on_teardown: 1, _is_shard?: 0, _shards: 0]
 
 
 

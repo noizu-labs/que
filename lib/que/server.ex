@@ -2,6 +2,7 @@ defmodule Que.Server do
   use GenServer
   @module __MODULE__
 
+  @async_add (Application.get_env(:que, :async_add) || false)
 
   @moduledoc """
   `Que.Server` is the `GenServer` responsible for processing all Jobs.
@@ -54,8 +55,14 @@ defmodule Que.Server do
 
   @doc false
   def add(priority, worker, arg) do
-    GenServer.cast(via_worker(worker), {:add_job, priority, worker, arg})
+    if @async_add do
+      GenServer.cast(via_worker(worker), {:add_job, priority, worker, arg})
+      {:ok, nil}
+    else
+      GenServer.call(via_worker(worker), {:add_job, priority, worker, arg})
+    end
   end
+
 
   # Initial State with Empty Queue and a list of currently running jobs
   @doc false
@@ -87,7 +94,7 @@ defmodule Que.Server do
       |> Que.Queue.put(job)
       |> Que.Queue.process
 
-    {:reply, :ok, queue}
+    {:reply, {:ok, job}, queue}
   end
 
   @doc false
@@ -127,6 +134,20 @@ defmodule Que.Server do
     {:noreply, queue}
   end
 
+
+  @doc false
+  def handle_info({:DOWN, ref, :process, pid, :noproc}, queue) do
+    # Process exited before Monitor.process registration could occur. It most likely succeeded.
+    job =
+      queue
+      |> Que.Queue.find(:ref, ref)
+      |> Que.Job.handle_success
+      |> Que.Persistence.update
+
+    queue =
+      queue
+      |> Que.Queue.remove(job)
+      |> Que.Queue.process
 
   @doc false
   def handle_info({:DOWN, ref, :process, pid, :noproc}, queue) do

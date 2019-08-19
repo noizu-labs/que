@@ -3,7 +3,7 @@ defmodule Que.Mixfile do
 
   @app     :que
   @name    "Que"
-  @version "0.7.1"
+  @version "0.10.1"
   @github  "https://github.com/noizu/#{@app}"
 
 
@@ -43,14 +43,14 @@ defmodule Que.Mixfile do
   def application do
     [
       mod: {Que, []},
-      applications: [:logger, :memento]
+      applications: [:logger, :memento, :ex_utils]
     ]
   end
 
 
   defp deps do
     [
-      {:memento,  "~> 0.2.1"              },
+      {:memento,  "~> 0.3.0"              },
       {:ex_utils, "~> 0.1.6"              },
       {:ex_doc,   ">= 0.0.0", only: :docs },
       {:inch_ex,  ">= 0.0.0", only: :docs },
@@ -65,6 +65,7 @@ defmodule Que.Mixfile do
   # Compilation Paths
   defp elixirc_paths(:dev),  do: elixirc_paths(:test)
   defp elixirc_paths(:test), do: ["lib", "test/support.ex"]
+  defp elixirc_paths(:noizu_test), do: ["lib", "test/support.ex"]
   defp elixirc_paths(_),     do: ["lib"]
 
 

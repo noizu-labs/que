@@ -1,4 +1,15 @@
-defmodule Que.Persistence.Mnesia.DB do
+
+
+# Fake Space to simplify DB Layout
+defmodule Que.Persistence.Mnesia.DB.AUIN do
+  use Memento.Table,
+      attributes: [:id, :counter],
+      index: [],
+      type: :ordered_set,
+      autoincrement: false
+end
+
+defmodule Que.Persistence.DirtyMnesia.DB do
   @moduledoc false
 
   # TODO:
@@ -11,13 +22,7 @@ defmodule Que.Persistence.Mnesia.DB do
   # Memento Table Definition
   # ========================
 
-  defmodule AUIN do
-    use Memento.Table,
-        attributes: [:id, :counter],
-        index: [],
-        type: :ordered_set,
-        autoincrement: false
-  end
+
 
   defmodule Jobs do
     use Memento.Table,
@@ -27,17 +32,25 @@ defmodule Que.Persistence.Mnesia.DB do
         autoincrement: true
 
 
+
     @moduledoc false
-    @store     __MODULE__
+
+    # Avoid requiring new table to allow switching between modes more easily for experimentation.
+    @store     Que.Persistence.Mnesia.DB.Jobs
 
     @multi_tenant (Application.get_env(:que, :multi_tenant) || false)
+    @auto_inc Que.Persistence.Mnesia.DB.AUIN
 
     # Persistence Implementation
     # --------------------------
+
+
     @doc "Finds all Jobs"
     def all_jobs do
       run_query([])
     end
+
+
 
     @doc "Find all Jobs for a worker"
     def all_jobs(name) do
@@ -205,10 +218,10 @@ defmodule Que.Persistence.Mnesia.DB do
     @doc "Finds a Job in the DB"
     def find_job(job) do
       #Memento.transaction! fn ->
-        job
-        |> normalize_id
-        |> read
-        |> to_que_job
+      job
+      |> normalize_id
+      |> read
+      |> to_que_job
       #end
     end
 
@@ -226,11 +239,11 @@ defmodule Que.Persistence.Mnesia.DB do
     @doc "Updates existing Que.Job in DB"
     def update_job(job) do
       #Memento.transaction! fn ->
-        job
-        |> Map.put(:updated_at, NaiveDateTime.utc_now)
-        |> to_db_job
-        |> write
-        |> to_que_job
+      job
+      |> Map.put(:updated_at, NaiveDateTime.utc_now)
+      |> to_db_job
+      |> write
+      |> to_que_job
       #end
     end
 
@@ -239,9 +252,9 @@ defmodule Que.Persistence.Mnesia.DB do
     @doc "Deletes a Que.Job from the DB"
     def delete_job(job) do
       #Memento.transaction! fn ->
-        job
-        |> normalize_id
-        |> delete
+      job
+      |> normalize_id
+      |> delete
       #end
     end
 
@@ -249,7 +262,6 @@ defmodule Que.Persistence.Mnesia.DB do
 
 
     ## PRIVATE METHODS
-
 
     # Execute a Memento Query
     defp run_dirty_query(pattern) do
@@ -259,11 +271,6 @@ defmodule Que.Persistence.Mnesia.DB do
     end
 
     defp run_query(pattern) do
-      Memento.transaction! fn ->
-        @store
-        |> Memento.Query.select(pattern)
-        |> Enum.map(&to_que_job/1)
-      end
       run_dirty_query(pattern)
     end
 
@@ -308,14 +315,10 @@ defmodule Que.Persistence.Mnesia.DB do
       end
     end
 
-
-
     # Convert Que.Job to Mnesia Job
     defp to_db_job(%Que.Job{} = job) do
       struct(@store, Map.from_struct(job))
     end
-
-
 
     # Convert Mnesia DB Job to Que.Job
     defp to_que_job(nil), do: nil
@@ -323,24 +326,22 @@ defmodule Que.Persistence.Mnesia.DB do
       struct(Que.Job, Map.from_struct(job))
     end
 
-
-
     # Read/Write/Delete to Table
-    defp dirty_read(id) do
-      case :mnesia.dirty_read(@store, id) do
+    defp dirty_read(store, id) do
+      case :mnesia.dirty_read(store, id) do
         []           -> nil
         [record | _] -> Memento.Query.Data.load(record)
       end
     end
 
-    defp dirty_delete(id) do
-      :mnesia.dirty_delete(@store, id)
+    defp dirty_delete(store, id) do
+      :mnesia.dirty_delete(store, id)
     end
 
-    defp dirty_write(record) do
-      struct = prepare_record_for_write!(@store, record)
+    defp dirty_write(store, record) do
+      struct = prepare_record_for_write!(store, record)
       tuple  = Memento.Query.Data.dump(struct)
-      case :mnesia.dirty_write(@store, tuple) do
+      case :mnesia.dirty_write(store, tuple) do
         :ok  -> struct
         term -> term
       end
@@ -366,6 +367,7 @@ defmodule Que.Persistence.Mnesia.DB do
         # If primary key is not specified and there is no autoincrement
         # enabled either, raise an error
         is_nil(primary) ->
+          #IO.puts "ERROR| Memento records cannot have a nil primary key unless autoincrement is enabled"
           Memento.Error.raise(
             "Memento records cannot have a nil primary key unless autoincrement is enabled"
           )
@@ -388,8 +390,8 @@ defmodule Que.Persistence.Mnesia.DB do
       n
     end
 
-    defp read(id),      do: dirty_read(id) #Memento.Query.read(@store, id)
-    defp delete(id),    do: dirty_delete(id) #Memento.Query.delete(@store, id)
-    defp write(record), do: dirty_write(record) #Memento.Query.write(record)
+    defp read(id),      do: dirty_read(@store, id) #Memento.Query.read(@store, id)
+    defp delete(id),    do: dirty_delete(@store, id) #Memento.Query.delete(@store, id)
+    defp write(record), do: dirty_write(@store, record) #Memento.Query.write(record)
   end
 end

@@ -62,7 +62,6 @@ defmodule Que.Worker do
 
 
 
-
   ## Handle Job Success & Failure
 
   The worker can also export optional `on_success/1` and `on_failure/2`
@@ -83,6 +82,39 @@ defmodule Que.Worker do
     def on_failure({campaign, user}, error) do
       CampaignReport.compile(campaign, status: :failed, user: user)
       Logger.debug("Campaign email to \#{user.id} failed: \#{inspect(error)}")
+    end
+  end
+  ```
+
+
+
+  ## Setup and Teardown
+
+  You can similarly export optional `on_setup/1` and `on_teardown/1` callbacks
+  that are respectively run before and after the job is performed (successfully
+  or not). But instead of the job arguments, they pass the job struct as an
+  argument which holds a lot more internal details that can be useful for custom
+  features such as logging, metrics, requeuing and more.
+
+  ```
+  defmodule MyApp.Workers.VideoProcessor do
+    use Que.Worker
+
+    def on_setup(%Que.Job{} = job) do
+      VideoMetrics.record(job.id, :start, process: job.pid, status: :starting)
+    end
+
+    def perform({user, video, options}) do
+      User.notify(user, "Your video is processing, check back later.")
+      FFMPEG.process(video.path, options)
+    end
+
+    def on_teardown(%Que.Job{} = job) do
+      {user, video, _options} = job.arguments
+      link = MyApp.Router.video_path(user.id, video.id)
+
+      VideoMetrics.record(job.id, :end, status: job.status)
+      User.notify(user, "We've finished processing your video. See the results.", link)
     end
   end
   ```
@@ -162,7 +194,6 @@ defmodule Que.Worker do
       def concurrency,    do: @concurrency
       def __que_worker__, do: true
 
-
       def _is_shard?, do: false
 
       ## Default implementations of on_success and on_failure callbacks
@@ -175,7 +206,15 @@ defmodule Que.Worker do
       end
 
 
-      defoverridable [on_success: 1, on_failure: 2]
+      def on_setup(_job) do
+      end
+
+
+      def on_teardown(_job) do
+      end
+
+
+      defoverridable [on_success: 1, on_failure: 2, on_setup: 1, on_teardown: 1, _is_shard?: 0]
 
 
 
@@ -233,4 +272,20 @@ defmodule Que.Worker do
   """
   @callback on_failure(arguments :: term, error :: tuple) :: term
 
+
+
+
+  @doc """
+  Optional callback that is executed before the job is started.
+  """
+  @callback on_setup(job :: Que.Job.t) :: term
+
+
+
+
+  @doc """
+  Optional callback that is executed after the job finishes,
+  both on success and failure.
+  """
+  @callback on_teardown(job :: Que.Job.t) :: term
 end

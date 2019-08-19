@@ -1,7 +1,6 @@
 ## Namespace all test related modules under Que.Test.Meta
 ## ======================================================
 
-
 defmodule Que.Test.Meta do
   require Logger
 
@@ -58,8 +57,17 @@ defmodule Que.Test.Meta do
       Logger.debug("#{__MODULE__} - perform: #{inspect(args)}")
     end
 
-    def on_success(args), do: Logger.debug("#{__MODULE__} - success: #{inspect(args)}")
+    def on_success(args),       do: Logger.debug("#{__MODULE__} - success: #{inspect(args)}")
     def on_failure(args, _err), do: Logger.debug("#{__MODULE__} - failure: #{inspect(args)}")
+  end
+
+
+  defmodule SetupAndTeardownWorker do
+    use Que.Worker
+
+    def perform(args),     do: Logger.debug("#{__MODULE__} - perform: #{inspect(args)}")
+    def on_setup(job),     do: Logger.debug("#{__MODULE__} - on_setup: #{inspect(job)}")
+    def on_teardown(job),  do: Logger.debug("#{__MODULE__} - on_teardown: #{inspect(job)}")
   end
 
 
@@ -73,6 +81,16 @@ defmodule Que.Test.Meta do
     # Sleeps for 2ms
     def wait(ms \\ 3) do
       :timer.sleep(ms)
+    end
+
+    def wait_for_children do
+      Task.Supervisor.children(Que.TaskSupervisor)
+      |> Enum.map(&Process.monitor/1)
+      |> Enum.each(fn ref ->
+        receive do
+          {:DOWN, ^ref, _, _, _} -> nil
+        end
+      end)
     end
 
     # Captures IO output
@@ -100,7 +118,6 @@ defmodule Que.Test.Meta do
   # ====================
 
   defmodule Helpers.App do
-
     # Restarts app and resets DB
     def reset do
       stop()
@@ -126,26 +143,18 @@ defmodule Que.Test.Meta do
   # =======================
 
   defmodule Helpers.Mnesia do
+    @adapter (Application.get_env(:que, :persistence_strategy) || Que.Persistence.Mnesia)
 
     # Cleans up Mnesia DB
     def reset do
-      Memento.Table.delete(Que.Persistence.Mnesia.DB.Jobs)
-      Memento.Table.create(Que.Persistence.Mnesia.DB.Jobs)
-
-      Memento.Table.delete(Que.Persistence.Mnesia.DB.AUIN)
-      Memento.Table.create(Que.Persistence.Mnesia.DB.AUIN)
-      :ok
+      @adapter.reset()
     end
 
     # Deletes the Mnesia DB from disk and creates a fresh one in memory
     def reset! do
-      Helpers.capture_log(fn ->
-        Memento.stop
-        File.rm_rf!(Que.Persistence.Mnesia.__config__[:path])
-        Memento.start
-
-        reset()
-      end)
+      #Helpers.capture_log(fn ->
+        @adapter.reset!()
+      #end)
     end
 
     # Creates sample Mnesia jobs
@@ -157,8 +166,11 @@ defmodule Que.Test.Meta do
         %Que.Job{id: 4, node: node(), priority: :pri0, status: :started,   worker: TestWorker    },
         %Que.Job{id: 5, node: node(), priority: :pri0, status: :queued,    worker: SuccessWorker },
         %Que.Job{id: 6, node: node(), priority: :pri0, status: :queued,    worker: FailureWorker }
-      ] |> Enum.map(&Que.Persistence.Mnesia.insert/1)
+      ] |> Enum.map(&@adapter.insert/1)
     end
+
+
+
   end
 
 end

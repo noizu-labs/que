@@ -20,11 +20,11 @@ defmodule Que.Job do
   @doc """
   Returns a new Job struct with defaults
   """
-  @spec new(worker :: Que.Worker.t, args :: list, pri :: atom) :: Que.Job.t
-  def new(worker, args \\ nil, pri \\ :pri1) do
+  @spec new(worker :: Que.Worker.t, args :: list, priority :: :pri0 | :pri1 | :pri2 | :pri3, node :: atom) :: Que.Job.t
+  def new(worker, args \\ nil, priority \\ :pri0, node \\ nil) do
     %Que.Job{
-      node: node(),
-      priority: pri,
+      node: node || node(),
+      priority: priority,
       status:    :queued,
       worker:    worker,
       arguments: args
@@ -38,7 +38,6 @@ defmodule Que.Job do
   @spec pri0(worker :: Que.Worker.t, args :: list) :: Que.Job.t
   def pri0(worker, args \\ nil), do: new(worker, args, :pri0)
 
-
   @doc """
   Returns a new pri0 Job struct with defaults
   """
@@ -50,6 +49,12 @@ defmodule Que.Job do
   """
   @spec pri2(worker :: Que.Worker.t, args :: list) :: Que.Job.t
   def pri2(worker, args \\ nil), do: new(worker, args, :pri2)
+
+  @doc """
+  Returns a new pri0 Job struct with defaults
+  """
+  @spec pri3(worker :: Que.Worker.t, args :: list) :: Que.Job.t
+  def pri3(worker, args \\ nil), do: new(worker, args, :pri3)
 
   @doc """
   Returns a new pri0 Job struct with defaults
@@ -79,6 +84,7 @@ defmodule Que.Job do
 
     {:ok, pid} =
       Que.Helpers.do_task(fn ->
+        job.worker.on_setup(job)
         job.worker.perform(job.arguments)
       end)
 
@@ -98,6 +104,7 @@ defmodule Que.Job do
 
     Que.Helpers.do_task(fn ->
       job.worker.on_success(job.arguments)
+      job.worker.on_teardown(job)
     end)
 
     %{ job | status: :completed, pid: nil, ref: nil }
@@ -116,6 +123,7 @@ defmodule Que.Job do
 
     Que.Helpers.do_task(fn ->
       job.worker.on_failure(job.arguments, error)
+      job.worker.on_teardown(job)
     end)
 
     %{ job | status: :failed, pid: nil, ref: nil }
@@ -128,7 +136,6 @@ end
 ## Implementing the String.Chars protocol for Que.Job structs
 
 defimpl String.Chars, for: Que.Job do
-
   def to_string(job) do
     "Job # #{job.id} with #{ExUtils.Module.name(job.worker)}"
   end
