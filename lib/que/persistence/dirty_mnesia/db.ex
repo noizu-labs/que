@@ -27,7 +27,7 @@ defmodule Que.Persistence.DirtyMnesia.DB do
   defmodule Jobs do
     use Memento.Table,
         attributes: [:id, :node, :priority, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at],
-        index: [:worker, :status],
+        index: [:node, :priority, :worker, :status],
         type: :ordered_set,
         autoincrement: true
 
