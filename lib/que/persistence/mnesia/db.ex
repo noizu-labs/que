@@ -11,13 +11,6 @@ defmodule Que.Persistence.Mnesia.DB do
   # Memento Table Definition
   # ========================
 
-  defmodule AUIN do
-    use Memento.Table,
-        attributes: [:id, :counter],
-        index: [],
-        type: :ordered_set,
-        autoincrement: false
-  end
 
   defmodule Jobs do
     use Memento.Table,
@@ -34,10 +27,14 @@ defmodule Que.Persistence.Mnesia.DB do
 
     # Persistence Implementation
     # --------------------------
+
+
     @doc "Finds all Jobs"
     def all_jobs do
       run_query([])
     end
+
+
 
     @doc "Find all Jobs for a worker"
     def all_jobs(name) do
@@ -204,12 +201,12 @@ defmodule Que.Persistence.Mnesia.DB do
 
     @doc "Finds a Job in the DB"
     def find_job(job) do
-      #Memento.transaction! fn ->
+      Memento.transaction! fn ->
         job
         |> normalize_id
         |> read
         |> to_que_job
-      #end
+      end
     end
 
 
@@ -225,24 +222,24 @@ defmodule Que.Persistence.Mnesia.DB do
 
     @doc "Updates existing Que.Job in DB"
     def update_job(job) do
-      #Memento.transaction! fn ->
+      Memento.transaction! fn ->
         job
         |> Map.put(:updated_at, NaiveDateTime.utc_now)
         |> to_db_job
         |> write
         |> to_que_job
-      #end
+      end
     end
 
 
 
     @doc "Deletes a Que.Job from the DB"
     def delete_job(job) do
-      #Memento.transaction! fn ->
+      Memento.transaction! fn ->
         job
         |> normalize_id
         |> delete
-      #end
+      end
     end
 
 
@@ -252,53 +249,14 @@ defmodule Que.Persistence.Mnesia.DB do
 
 
     # Execute a Memento Query
-    defp run_dirty_query(pattern) do
-      @store
-      |> dirty_select(pattern)
-      |> Enum.map(&to_que_job/1)
-    end
-
     defp run_query(pattern) do
       Memento.transaction! fn ->
         @store
         |> Memento.Query.select(pattern)
         |> Enum.map(&to_que_job/1)
       end
-      run_dirty_query(pattern)
     end
 
-    @result [:"$_"]
-    def dirty_select(table, guards, opts \\ []) do
-      attr_map   = table.__info__.query_map
-      match_head = table.__info__.query_base
-      guards     = Memento.Query.Spec.build(guards, attr_map)
-      dirty_select_raw(table, [{ match_head, guards, @result }], opts)
-    end
-
-    def dirty_select_raw(table, match_spec, opts \\ []) do
-      # Default options
-      #lock   = Keyword.get(opts, :lock, :read)
-      #limit  = Keyword.get(opts, :limit, nil)
-      coerce = Keyword.get(opts, :coerce, true)
-
-      # Use select/4 if there is limit, otherwise use select/3
-      # Execute select method with the no. of args
-      result = :mnesia.dirty_select(table, match_spec)
-
-      # Coerce result conversion if `coerce: true`
-      case coerce do
-        true  -> coerce_records(result)
-        false -> result
-      end
-    end
-
-    defp coerce_records(records) when is_list(records) do
-      Enum.map(records, &Memento.Query.Data.load/1)
-    end
-
-    defp coerce_records({records, _term}) when is_list(records) do
-      coerce_records(records)
-    end
 
     # Returns Job ID
     defp normalize_id(job) do
@@ -324,72 +282,10 @@ defmodule Que.Persistence.Mnesia.DB do
     end
 
 
-
     # Read/Write/Delete to Table
-    defp dirty_read(id) do
-      case :mnesia.dirty_read(@store, id) do
-        []           -> nil
-        [record | _] -> Memento.Query.Data.load(record)
-      end
-    end
+    defp read(id),      do: Memento.Query.read(@store, id)
+    defp delete(id),    do: Memento.Query.delete(@store, id)
+    defp write(record), do: Memento.Query.write(record)
 
-    defp dirty_delete(id) do
-      :mnesia.dirty_delete(@store, id)
-    end
-
-    defp dirty_write(record) do
-      struct = prepare_record_for_write!(@store, record)
-      tuple  = Memento.Query.Data.dump(struct)
-      case :mnesia.dirty_write(@store, tuple) do
-        :ok  -> struct
-        term -> term
-      end
-    end
-
-    defp prepare_record_for_write!(table, record) do
-      info     = table.__info__()
-      autoinc? = Memento.Table.Definition.has_autoincrement?(table)
-      primary  = Map.get(record, info.primary_key)
-
-      cond do
-        # If primary key is specified, don't do anything to the record
-        not is_nil(primary) ->
-          record
-
-        # If primary key is not specified but autoincrement is enabled,
-        # get the last numeric key and increment its value
-
-        is_nil(primary) && autoinc? ->
-          next_key = autoincrement_key_for(table)
-          Map.put(record, info.primary_key, next_key)
-
-        # If primary key is not specified and there is no autoincrement
-        # enabled either, raise an error
-        is_nil(primary) ->
-          Memento.Error.raise(
-            "Memento records cannot have a nil primary key unless autoincrement is enabled"
-          )
-      end
-    end
-
-
-    #---------------------
-    # @TODO - I have a much more efficient mechanisms for a sequence generator need a way to drop in.
-    #---------------------
-    def autoincrement_key_for(table) do
-      {:atomic, n} = :mnesia.transaction(fn ->
-        n = case :mnesia.read(@auto_inc, table, :write) do
-          [{@auto_inc, table, c}| _] -> c + 1
-          o -> 0
-        end
-        :mnesia.write(@auto_inc, {@auto_inc, table, n}, :write)
-        n
-      end)
-      n
-    end
-
-    defp read(id),      do: dirty_read(id) #Memento.Query.read(@store, id)
-    defp delete(id),    do: dirty_delete(id) #Memento.Query.delete(@store, id)
-    defp write(record), do: dirty_write(record) #Memento.Query.write(record)
   end
 end

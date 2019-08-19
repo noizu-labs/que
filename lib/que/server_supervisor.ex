@@ -52,18 +52,6 @@ defmodule Que.ServerSupervisor do
 
     is_shard = try do
       worker._is_shard?
-      rescue _ -> false
-      catch _ -> false
-    end
-
-    add(:pri1, worker, args)
-  end
-
-  @doc false
-  def add(priority, worker, args) do
-
-    is_shard = try do
-      worker._is_shard?
     rescue _ -> false
     catch _ -> false
     end
@@ -82,8 +70,6 @@ defmodule Que.ServerSupervisor do
       end
       Que.Server.add(priority, worker, args)
     end
-
-
   end
 
   @doc false

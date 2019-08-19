@@ -24,7 +24,6 @@ defmodule Que.Queue do
 
   @priority_levels [:pri0, :pri1, :pri2, :pri3]
 
-  @priority_levels [:pri0, :pri1, :pri2, :pri3]
 
   @doc """
   Returns a new processable Queue with defaults
@@ -42,6 +41,9 @@ defmodule Que.Queue do
       running: []
     }
   end
+
+
+
 
   @doc """
   Processes the Queue and runs pending jobs
@@ -90,6 +92,9 @@ defmodule Que.Queue do
     queued = update_in(queued, [job.priority], fn(q) -> :queue.in(job, q) end)
     %{ q | queued: queued }
   end
+
+
+
 
   @doc """
   Fetches the next Job in queue and returns a queue and Job tuple
@@ -140,14 +145,17 @@ defmodule Que.Queue do
   def update(%Que.Queue{} = q, %Que.Job{} = job) do
     queued = queued(q, job.priority)
     queued_index = Enum.find_index(queued, &(&1.id == job.id))
+
     if queued_index do
       queued = List.replace_at(queued, queued_index, job)
       %{ q | queued: put_in(q.queued, [job.priority], :queue.from_list(queued))}
     else
       running_index = Enum.find_index(q.running, &(&1.id == job.id))
+
       if running_index do
         running = List.replace_at(q.running, running_index, job)
         %{ q | running: running }
+
       else
         raise Que.Error.JobNotFound, "Job not found in Queue"
       end
@@ -170,6 +178,9 @@ defmodule Que.Queue do
       raise Que.Error.JobNotFound, "Job not found in Queue"
     end
   end
+
+
+
 
   @doc """
   Returns queued jobs in the Queue

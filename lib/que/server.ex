@@ -1,5 +1,6 @@
 defmodule Que.Server do
   use GenServer
+
   @module __MODULE__
 
   @async_add (Application.get_env(:que, :async_add) || false)
@@ -65,6 +66,7 @@ defmodule Que.Server do
 
 
   # Initial State with Empty Queue and a list of currently running jobs
+
   @doc false
   def init({:ok, worker}) do
     existing_jobs =
@@ -77,6 +79,9 @@ defmodule Que.Server do
 
     {:ok, queue}
   end
+
+
+
 
   # Pushes a new Job to the queue and processes it
 
@@ -135,19 +140,6 @@ defmodule Que.Server do
   end
 
 
-  @doc false
-  def handle_info({:DOWN, ref, :process, pid, :noproc}, queue) do
-    # Process exited before Monitor.process registration could occur. It most likely succeeded.
-    job =
-      queue
-      |> Que.Queue.find(:ref, ref)
-      |> Que.Job.handle_success
-      |> Que.Persistence.update
-
-    queue =
-      queue
-      |> Que.Queue.remove(job)
-      |> Que.Queue.process
 
   @doc false
   def handle_info({:DOWN, ref, :process, pid, :noproc}, queue) do

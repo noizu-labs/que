@@ -152,9 +152,9 @@ defmodule Que.Test.Meta do
 
     # Deletes the Mnesia DB from disk and creates a fresh one in memory
     def reset! do
-      #Helpers.capture_log(fn ->
+      Helpers.capture_log(fn ->
         @adapter.reset!()
-      #end)
+      end)
     end
 
     # Creates sample Mnesia jobs

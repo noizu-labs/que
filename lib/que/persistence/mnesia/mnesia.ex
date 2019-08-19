@@ -1,6 +1,6 @@
 defmodule Que.Persistence.Mnesia do
   use Que.Persistence
-  require Logger
+
 
   @moduledoc """
   Mnesia adapter to persist `Que.Job`s
@@ -44,7 +44,9 @@ defmodule Que.Persistence.Mnesia do
   @config [db: DB, table: Jobs]
   @db     Module.concat(__MODULE__, @config[:db])
   @store  Module.concat(@db, @config[:table])
-  @auto_inc Module.concat([@db, AUIN])
+
+
+
 
   @doc """
   Creates the Mnesia Database for `Que` on disk
@@ -134,25 +136,6 @@ defmodule Que.Persistence.Mnesia do
   @doc false
   def initialize do
     Memento.Table.create(@store)
-    Memento.Table.create(@auto_inc)
-    Enum.reduce_while(1..1_000, 0, fn(i, acc) ->
-      w = (i + 10) * 1_000
-      case :mnesia.wait_for_tables([@store, @auto_inc], w)  do
-        :ok -> {:halt, acc}
-        _ ->
-          Logger.warn "QUE: Waiting on Tables - #{i}}"
-          {:cont, acc + w}
-      end
-    end)
-
-    case :mnesia.wait_for_tables([@store, @auto_inc], 5_000)  do
-      :ok -> :ok
-      _ ->
-        Logger.warn "QUE: Waiting on Tables - hard wait"
-        :mnesia.wait_for_tables([@store, @auto_inc], :infinity)
-        :ok
-    end
-
   end
 
 

@@ -10,6 +10,7 @@ defmodule Que.Test.Server do
     Helpers.App.reset
   end
 
+
   test "#add queues a job for (previously started) worker server" do
     capture = Helpers.capture_log(fn ->
       Que.Server.start_link(TestWorker)
@@ -20,6 +21,7 @@ defmodule Que.Test.Server do
 
     assert capture =~ ~r/perform: :yo/
   end
+
 
   test "loads and processes existing jobs when server starts" do
     1..4

@@ -2,6 +2,7 @@ defmodule Que.Job do
   defstruct  [:id, :node, :priority, :arguments, :worker, :status, :ref, :pid, :created_at, :updated_at]
   ## Note: Update Que.Persistence.Mnesia after changing these values
 
+
   @moduledoc """
   Module to manage a Job's state and execute the worker's callbacks.
 
@@ -9,6 +10,7 @@ defmodule Que.Job do
   status and more. Meant for internal usage, so you shouldn't use this
   unless you absolutely know what you're doing.
   """
+
 
   @statuses [:queued, :started, :failed, :completed]
   @typedoc  "One of the atoms in `#{inspect(@statuses)}`"
@@ -56,11 +58,6 @@ defmodule Que.Job do
   @spec pri3(worker :: Que.Worker.t, args :: list) :: Que.Job.t
   def pri3(worker, args \\ nil), do: new(worker, args, :pri3)
 
-  @doc """
-  Returns a new pri0 Job struct with defaults
-  """
-  @spec pri3(worker :: Que.Worker.t, args :: list) :: Que.Job.t
-  def pri3(worker, args \\ nil), do: new(worker, args, :pri3)
 
   @doc """
   Update the Job status to one of the predefined values in `@statuses`
